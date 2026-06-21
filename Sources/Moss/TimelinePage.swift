@@ -179,27 +179,37 @@ struct TimelinePage: View {
                     }
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7), spacing: 8) {
                         ForEach(monthDays, id: \.date) { item in
-                            VStack(spacing: 7) {
-                                Text("\(Calendar.current.component(.day, from: item.date))")
-                                    .font(.caption.weight(.semibold))
-                                RoundedRectangle(cornerRadius: 7)
-                                    .fill(monthColor(duration: item.duration))
-                                    .frame(height: 31)
-                                    .overlay {
-                                        if item.duration > 0 {
-                                            Text(item.duration.compactDuration)
-                                                .font(.system(size: 9, weight: .bold))
-                                                .foregroundStyle(.white)
+                            Button {
+                                selectedDate = item.date
+                                range = .day
+                            } label: {
+                                VStack(spacing: 7) {
+                                    Text("\(Calendar.current.component(.day, from: item.date))")
+                                        .font(.caption.weight(.semibold))
+                                    RoundedRectangle(cornerRadius: 7)
+                                        .fill(monthColor(duration: item.duration))
+                                        .frame(height: 31)
+                                        .overlay {
+                                            if item.duration > 0 {
+                                                Text(item.duration.compactDuration)
+                                                    .font(.system(size: 9, weight: .bold))
+                                                    .foregroundStyle(.white)
+                                            }
                                         }
-                                    }
+                                }
+                                .padding(5)
+                                .background(
+                                    Calendar.current.isDateInToday(item.date)
+                                        ? MossTheme.sage.opacity(0.09)
+                                        : Color.clear,
+                                    in: RoundedRectangle(cornerRadius: 10)
+                                )
                             }
-                            .padding(5)
-                            .background(
-                                Calendar.current.isDateInToday(item.date)
-                                    ? MossTheme.sage.opacity(0.09)
-                                    : Color.clear,
-                                in: RoundedRectangle(cornerRadius: 10)
-                            )
+                            .buttonStyle(.plain)
+                            .opacity(isInSelectedMonth(item.date) ? 1 : 0.35)
+                            .accessibilityLabel(item.date.formatted(date: .complete, time: .omitted))
+                            .accessibilityValue(item.duration.chineseDuration)
+                            .accessibilityHint("打开这一天的专注记录")
                             .help("\(item.date.formatted(.dateTime.month().day())) · \(item.duration.chineseDuration)")
                         }
                     }
@@ -251,6 +261,10 @@ struct TimelinePage: View {
         case ..<(120 * 60): MossTheme.sage.opacity(0.68)
         default: MossTheme.sage
         }
+    }
+
+    private func isInSelectedMonth(_ date: Date) -> Bool {
+        Calendar.current.isDate(date, equalTo: selectedDate, toGranularity: .month)
     }
 
     private func legendItem(_ text: String, color: Color, symbol: String) -> some View {

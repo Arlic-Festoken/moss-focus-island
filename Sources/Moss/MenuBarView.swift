@@ -75,11 +75,11 @@ struct MenuBarView: View {
 
             if let first = activeTasks.first {
                 Button {
-                    store.start(task: first)
+                    store.startLastTask()
                 } label: {
                     HStack {
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("继续上一次")
+                            Text("开始上一次任务")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             Text(first.title)
@@ -163,7 +163,10 @@ struct MenuBarView: View {
             }
 
             HStack(spacing: 8) {
-                if store.phase == .preparing || store.phase == .focusing {
+                if store.phase == .preparing {
+                    Button("取消开始") { store.cancelStart() }
+                        .buttonStyle(CapsuleButtonStyle(tint: MossTheme.brick))
+                } else if store.phase == .focusing {
                     Button("暂停") { store.pause() }
                         .buttonStyle(CapsuleButtonStyle())
                     Button("↗ 被打断") { store.beginOrReturnFromInterruption() }
@@ -177,7 +180,7 @@ struct MenuBarView: View {
                         .buttonStyle(CapsuleButtonStyle(tint: MossTheme.brick))
                 } else if store.phase == .breakTime {
                     Button("结束休息") { store.skipBreak() }
-                        .buttonStyle(CapsuleButtonStyle(tint: MossTheme.apricot, prominent: true))
+                        .buttonStyle(CapsuleButtonStyle(tint: MossTheme.apricot, prominent: true, prominentForeground: .black))
                 } else {
                     Button("完成记录") { store.isReviewPresented = true }
                         .buttonStyle(CapsuleButtonStyle(prominent: true))

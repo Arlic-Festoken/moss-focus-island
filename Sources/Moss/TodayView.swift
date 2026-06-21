@@ -3,9 +3,6 @@ import SwiftUI
 struct TodayView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var dataStore: DataStore
-    @State private var isAddingTask = false
-    @State private var isAddingProject = false
-
     private var activeTasks: [FocusTask] {
         dataStore.tasks.filter { !$0.archived }
     }
@@ -27,28 +24,11 @@ struct TodayView: View {
                 header
                 statusCard
 
-                HStack(alignment: .top, spacing: 18) {
-                    taskCard
-                        .frame(maxWidth: .infinity)
-                    FocusWeatherCard(metrics: metrics)
-                        .frame(width: 300)
-                }
-
-                HStack(alignment: .top, spacing: 18) {
-                    TodayTimelineCard(sessions: dataStore.sessions)
-                        .frame(maxWidth: .infinity)
-                    DailyFeedbackCard(metrics: metrics)
-                        .frame(width: 360)
-                }
+                taskAndWeather
+                timelineAndFeedback
             }
             .padding(28)
             .frame(maxWidth: 1160, alignment: .leading)
-        }
-        .sheet(isPresented: $isAddingTask) {
-            TaskEditorView()
-        }
-        .sheet(isPresented: $isAddingProject) {
-            ProjectEditorView()
         }
     }
 
@@ -61,14 +41,6 @@ struct TodayView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            Spacer()
-            Menu {
-                Button("新任务") { isAddingTask = true }
-                Button("新项目 / 文件夹") { isAddingProject = true }
-            } label: {
-                Label("新建", systemImage: "plus")
-            }
-            .buttonStyle(CapsuleButtonStyle())
         }
     }
 
@@ -164,6 +136,38 @@ struct TodayView: View {
         }
     }
 
+    private var taskAndWeather: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 18) {
+                taskCard
+                    .frame(minWidth: 440, maxWidth: .infinity)
+                FocusWeatherCard(metrics: metrics)
+                    .frame(width: 300)
+            }
+            VStack(alignment: .leading, spacing: 18) {
+                taskCard
+                FocusWeatherCard(metrics: metrics)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private var timelineAndFeedback: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 18) {
+                TodayTimelineCard(sessions: dataStore.sessions)
+                    .frame(minWidth: 400, maxWidth: .infinity)
+                DailyFeedbackCard(metrics: metrics)
+                    .frame(width: 360)
+            }
+            VStack(alignment: .leading, spacing: 18) {
+                TodayTimelineCard(sessions: dataStore.sessions)
+                DailyFeedbackCard(metrics: metrics)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: .now)
         if hour < 11 { return "早上好，智康。" }
@@ -249,6 +253,10 @@ private struct TaskCapsuleRow: View {
         dataStore.totalFocus(for: task.id)
     }
 
+    private var canStart: Bool {
+        store.phase == .idle
+    }
+
     var body: some View {
         HStack(spacing: 13) {
             CategoryGlyph(
@@ -275,7 +283,9 @@ private struct TaskCapsuleRow: View {
             }
             Menu {
                 Button("按任务设置开始") { store.start(task: task) }
+                    .disabled(!canStart)
                 Button("先做 5 分钟") { store.start(task: task, mode: .ignition) }
+                    .disabled(!canStart)
                 Divider()
                 Button("查看专注记录") { isShowingDetail = true }
                 Button("编辑") { isEditing = true }
@@ -290,6 +300,16 @@ private struct TaskCapsuleRow: View {
                     .frame(width: 24, height: 24)
             }
             .menuStyle(.borderlessButton)
+            .accessibilityLabel("任务操作")
+            Button {
+                isShowingDetail = true
+            } label: {
+                Label("查看记录", systemImage: "clock.arrow.circlepath")
+                    .labelStyle(.iconOnly)
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("查看记录")
             Button {
                 store.start(task: task)
             } label: {
@@ -300,12 +320,10 @@ private struct TaskCapsuleRow: View {
                     .background(MossTheme.sage, in: Circle())
             }
             .buttonStyle(.plain)
-            .disabled(store.phase != .idle)
+            .disabled(!canStart)
+            .accessibilityLabel("开始 \(task.title)")
         }
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) {
-            isShowingDetail = true
-        }
         .sheet(isPresented: $isEditing) {
             TaskEditorView(task: task)
         }

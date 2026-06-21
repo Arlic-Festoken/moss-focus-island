@@ -160,7 +160,7 @@ struct NotchIslandView: View {
         }
         .frame(maxWidth: .infinity, alignment: .top)
         .mossTypography()
-        .id(colorTheme)
+        .tint(MossColorTheme(rawValue: colorTheme)?.accent ?? MossTheme.sage)
         .onChange(of: islandPlacement) { _, _ in
             NotchPanelController.shared.reposition()
         }
@@ -197,35 +197,42 @@ struct NotchIslandView: View {
     }
 
     private var compactIsland: some View {
-        HStack(spacing: 0) {
-            islandLobe {
-                HStack(spacing: 8) {
-                    ProgressRing(progress: store.progress, lineWidth: 3, tint: phaseTint)
-                        .frame(width: 20, height: 20)
-                    Text(store.displayTime.clockString)
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(.white)
-                }
-            }
-
-            if hasNotch {
-                Color.clear.frame(width: 118, height: 34)
-            }
-
-            islandLobe {
-                HStack(spacing: 7) {
-                    Text(store.phase == .breakTime ? BreakPrompt.current : store.currentTaskTitle)
-                        .lineLimit(1)
-                    if store.phase != .breakTime {
-                        Text("· \(store.todayCompletedCount)")
-                            .foregroundStyle(.white.opacity(0.58))
+        Button {
+            store.isIslandExpanded = true
+        } label: {
+            HStack(spacing: 0) {
+                islandLobe {
+                    HStack(spacing: 8) {
+                        ProgressRing(progress: store.progress, lineWidth: 3, tint: phaseTint)
+                            .frame(width: 20, height: 20)
+                        Text(store.displayTime.clockString)
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(.white)
                     }
                 }
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.9))
+
+                if hasNotch {
+                    Color.clear.frame(width: 118, height: 34)
+                }
+
+                islandLobe {
+                    HStack(spacing: 7) {
+                        Text(store.phase == .breakTime ? BreakPrompt.current : store.currentTaskTitle)
+                            .lineLimit(1)
+                        if store.phase != .breakTime {
+                            Text("· \(store.todayCompletedCount)")
+                                .foregroundStyle(.white.opacity(0.58))
+                        }
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                }
             }
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("打开专注控制")
+        .help("打开专注控制")
         .padding(.top, hasNotch ? 2 : 0)
     }
 
@@ -257,7 +264,9 @@ struct NotchIslandView: View {
                 .foregroundStyle(.white)
 
             HStack(spacing: 6) {
-                if store.phase == .preparing || store.phase == .focusing {
+                if store.phase == .preparing {
+                    islandButton("xmark", tint: MossTheme.brick) { store.cancelStart() }
+                } else if store.phase == .focusing {
                     islandButton("pause.fill") { store.pause() }
                     islandButton("arrow.up.right") { store.beginOrReturnFromInterruption() }
                     islandButton("stop.fill", tint: MossTheme.brick) { store.requestEnd() }
@@ -269,6 +278,7 @@ struct NotchIslandView: View {
                 } else {
                     islandButton("checkmark", tint: MossTheme.mint) { store.isReviewPresented = true }
                 }
+                islandButton("chevron.up") { store.isIslandExpanded = false }
             }
         }
         .padding(.horizontal, 15)
@@ -309,6 +319,8 @@ struct NotchIslandView: View {
         case "stop.fill": "结束专注"
         case "forward.end.fill": "结束休息"
         case "checkmark": "完成记录"
+        case "xmark": "取消开始"
+        case "chevron.up": "收起专注控制"
         default: "专注操作"
         }
     }

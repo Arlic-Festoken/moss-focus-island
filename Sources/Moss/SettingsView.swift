@@ -107,6 +107,7 @@ struct SettingsView: View {
                 Section("快捷操作") {
                     LabeledContent("开始上一次任务", value: "⌘ ⇧ F")
                     LabeledContent("暂停 / 继续", value: "⌘ ⇧ P")
+                    LabeledContent("结束 / 取消开始", value: "⌘ ⇧ E")
                 }
             }
             .formStyle(.grouped)
@@ -134,7 +135,7 @@ private struct IslandPlacementPicker: View {
                             Text(placement.title)
                                 .font(.caption2)
                         }
-                        .foregroundStyle(selection == placement.rawValue ? .white : MossTheme.sage)
+                        .foregroundStyle(selection == placement.rawValue ? MossTheme.current.accentForeground : MossTheme.sage)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 9)
                         .background(
@@ -145,6 +146,9 @@ private struct IslandPlacementPicker: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(placement.title)
+                    .accessibilityValue(selection == placement.rawValue ? "已选择" : "未选择")
+                    .accessibilityAddTraits(selection == placement.rawValue ? .isSelected : [])
                 }
             }
         }
@@ -194,6 +198,9 @@ private struct FontThemePicker: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(theme.title)
+                .accessibilityValue(selection == theme.rawValue ? "已选择" : "未选择")
+                .accessibilityAddTraits(selection == theme.rawValue ? .isSelected : [])
             }
         }
     }
@@ -252,6 +259,9 @@ private struct ThemePicker: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(theme.title)
+                .accessibilityValue(selection == theme.rawValue ? "已选择" : "未选择")
+                .accessibilityAddTraits(selection == theme.rawValue ? .isSelected : [])
             }
         }
     }

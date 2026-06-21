@@ -107,7 +107,6 @@ private struct MossTypographyModifier: ViewModifier {
         content
             .font(theme.font(size: 13 * size.scale))
             .dynamicTypeSize(size.dynamicTypeSize)
-            .id("\(fontTheme)-\(fontSize)")
     }
 }
 

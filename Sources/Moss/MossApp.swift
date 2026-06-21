@@ -23,13 +23,17 @@ struct MossApp: App {
     @StateObject private var dataStore = DataStore()
     @AppStorage("colorTheme") private var colorTheme = MossColorTheme.sage.rawValue
 
+    private var accent: Color {
+        MossColorTheme(rawValue: colorTheme)?.accent ?? MossTheme.sage
+    }
+
     var body: some Scene {
         Window("Moss · 专注岛", id: "main") {
             MainView()
                 .environmentObject(store)
                 .environmentObject(dataStore)
                 .mossTypography()
-                .id(colorTheme)
+                .tint(accent)
                 .task {
                     store.configure(with: dataStore)
                     NotchPanelController.shared.show(store: store)
@@ -63,7 +67,7 @@ struct MossApp: App {
                 .environmentObject(store)
                 .environmentObject(dataStore)
                 .mossTypography()
-                .id(colorTheme)
+                .tint(accent)
         }
         .menuBarExtraStyle(.window)
 
@@ -72,7 +76,7 @@ struct MossApp: App {
                 .environmentObject(store)
                 .environmentObject(dataStore)
                 .mossTypography()
-                .id(colorTheme)
+                .tint(accent)
         }
     }
 }

@@ -76,6 +76,15 @@ enum MossColorTheme: String, CaseIterable, Identifiable {
         }
     }
 
+    var accentForeground: Color {
+        switch self {
+        case .violet, .graphite:
+            .white
+        case .sage, .ocean, .amber, .rose:
+            .black.opacity(0.82)
+        }
+    }
+
     var darkPaper: NSColor {
         switch self {
         case .sage: NSColor(red: 0.085, green: 0.11, blue: 0.095, alpha: 1)
@@ -168,11 +177,12 @@ struct MossCard<Content: View>: View {
 struct CapsuleButtonStyle: ButtonStyle {
     var tint: Color = MossTheme.sage
     var prominent = false
+    var prominentForeground: Color?
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(MossTypography.font(13, weight: .semibold))
-            .foregroundStyle(prominent ? Color.white : tint)
+            .foregroundStyle(prominent ? (prominentForeground ?? MossTheme.current.accentForeground) : tint)
             .padding(.horizontal, 15)
             .padding(.vertical, 9)
             .background(

@@ -23,6 +23,8 @@ enum AppSection: String, CaseIterable, Identifiable {
 struct MainView: View {
     @EnvironmentObject private var store: AppStore
     @AppStorage("selectedSection") private var selectedSectionRaw = AppSection.today.rawValue
+    @State private var isAddingTask = false
+    @State private var isAddingProject = false
 
     private var selection: Binding<AppSection?> {
         Binding(
@@ -67,7 +69,6 @@ struct MainView: View {
                     .padding(14)
             }
             .navigationSplitViewColumnWidth(min: 185, ideal: 208, max: 240)
-            .background(MossTheme.paper)
         } detail: {
             Group {
                 switch selection.wrappedValue ?? .today {
@@ -83,6 +84,29 @@ struct MainView: View {
         .background(MossTheme.paper)
         .background(WindowConfigurator())
         .frame(minWidth: 900, minHeight: 620)
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    store.startLastTask()
+                } label: {
+                    Label("开始上一次", systemImage: "play.fill")
+                }
+                .help("⌘⇧F")
+
+                Menu {
+                    Button("新任务") { isAddingTask = true }
+                    Button("新项目 / 文件夹") { isAddingProject = true }
+                } label: {
+                    Label("新建", systemImage: "plus")
+                }
+            }
+        }
+        .sheet(isPresented: $isAddingTask) {
+            TaskEditorView()
+        }
+        .sheet(isPresented: $isAddingProject) {
+            ProjectEditorView()
+        }
         .sheet(isPresented: $store.isReviewPresented) {
             ReviewView()
                 .environmentObject(store)

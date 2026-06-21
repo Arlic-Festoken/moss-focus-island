@@ -199,10 +199,14 @@ final class AppStore: ObservableObject {
     }
 
     func requestEnd() {
-        guard phase == .preparing || phase == .focusing || phase == .paused else { return }
+        if phase == .preparing {
+            cancelStart()
+            return
+        }
+        guard phase == .focusing || phase == .paused else { return }
         guard let current = run, let dataStore else { return }
 
-        if activeWallElapsed(for: current) < current.discardThreshold {
+        if calculatedElapsed(for: current) < current.discardThreshold {
             dataStore.removeSession(id: current.sessionID)
             clearToIdle()
             showTransient("未满 \(Int(current.discardThreshold / 60)) 分钟，本次不计入")
@@ -217,6 +221,13 @@ final class AppStore: ObservableObject {
         stopTimer()
         openMainWindow()
         isReviewPresented = true
+    }
+
+    func cancelStart() {
+        guard phase == .preparing, let sessionID = run?.sessionID else { return }
+        dataStore?.removeSession(id: sessionID)
+        clearToIdle()
+        showTransient("已取消，本次未计时")
     }
 
     func cancelReview() {
