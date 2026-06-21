@@ -6,6 +6,15 @@ enum ExportFormat {
     case csv
 }
 
+struct ExportProject: Codable {
+    var id: UUID
+    var title: String
+    var symbol: String
+    var archived: Bool
+    var createdAt: Date
+    var sortOrder: Int
+}
+
 struct ExportTask: Codable {
     var id: UUID
     var projectID: UUID?
@@ -17,6 +26,7 @@ struct ExportTask: Codable {
     var createdAt: Date
     var timerActivity: String
     var focusDuration: TimeInterval
+    var breakDuration: TimeInterval
     var warmupDuration: TimeInterval
     var discardThreshold: TimeInterval
 }
@@ -44,13 +54,19 @@ struct ExportSession: Codable {
 
 struct MossExport: Codable {
     var exportedAt: Date
+    var projects: [ExportProject]
     var tasks: [ExportTask]
     var sessions: [ExportSession]
 }
 
 @MainActor
 enum ExportService {
-    static func export(tasks: [FocusTask], sessions: [FocusSession], format: ExportFormat) throws {
+    static func export(
+        projects: [FocusProject],
+        tasks: [FocusTask],
+        sessions: [FocusSession],
+        format: ExportFormat
+    ) throws {
         let panel = NSSavePanel()
         panel.canCreateDirectories = true
         panel.nameFieldStringValue = "Moss-\(Date.now.formatted(.iso8601.year().month().day())).\(format == .json ? "json" : "csv")"
@@ -60,9 +76,55 @@ enum ExportService {
         let data: Data
         switch format {
         case .json:
-            let payload = MossExport(
-                exportedAt: .now,
-                tasks: tasks.map {
+            data = try jsonData(projects: projects, tasks: tasks, sessions: sessions)
+        case .csv:
+            let header = "id,task_id,task_title,project_id,project_title,category,started_at,ended_at,planned_seconds,focus_seconds,paused_seconds,warmup_seconds,timer_activity,mode,status,completion,distraction,note\n"
+            let formatter = ISO8601DateFormatter()
+            let rows = sessions.map { session in
+                [
+                    session.id.uuidString,
+                    session.taskID.uuidString,
+                    csv(session.taskTitle),
+                    session.projectID?.uuidString ?? "",
+                    csv(session.projectTitle),
+                    csv(session.category),
+                    formatter.string(from: session.startedAt),
+                    session.endedAt.map(formatter.string(from:)) ?? "",
+                    String(Int(session.plannedDuration)),
+                    String(Int(session.actualFocusDuration)),
+                    String(Int(session.pausedDuration)),
+                    String(Int(session.warmupDuration)),
+                    session.timerActivityRaw,
+                    session.modeRaw,
+                    session.statusRaw,
+                    session.completionStateRaw ?? "",
+                    session.distractionSourceRaw ?? "",
+                    csv(session.note)
+                ].joined(separator: ",")
+            }.joined(separator: "\n")
+            data = Data((header + rows + "\n").utf8)
+        }
+        try data.write(to: url, options: .atomic)
+    }
+
+    static func jsonData(
+        projects: [FocusProject],
+        tasks: [FocusTask],
+        sessions: [FocusSession]
+    ) throws -> Data {
+        let payload = MossExport(
+            exportedAt: .now,
+            projects: projects.map {
+                ExportProject(
+                    id: $0.id,
+                    title: $0.title,
+                    symbol: $0.symbol,
+                    archived: $0.archived,
+                    createdAt: $0.createdAt,
+                    sortOrder: $0.sortOrder
+                )
+            },
+            tasks: tasks.map {
                     ExportTask(
                         id: $0.id,
                         projectID: $0.projectID,
@@ -74,11 +136,12 @@ enum ExportService {
                         createdAt: $0.createdAt,
                         timerActivity: $0.timerActivityRaw,
                         focusDuration: $0.focusDuration,
+                        breakDuration: $0.breakDuration,
                         warmupDuration: $0.warmupDuration,
                         discardThreshold: $0.discardThreshold
                     )
                 },
-                sessions: sessions.map {
+            sessions: sessions.map {
                     ExportSession(
                         id: $0.id,
                         taskID: $0.taskID,
@@ -100,35 +163,11 @@ enum ExportService {
                         note: $0.note
                     )
                 }
-            )
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            encoder.dateEncodingStrategy = .iso8601
-            data = try encoder.encode(payload)
-        case .csv:
-            let header = "id,task_id,task_title,category,started_at,ended_at,planned_seconds,focus_seconds,paused_seconds,mode,status,completion,distraction,note\n"
-            let formatter = ISO8601DateFormatter()
-            let rows = sessions.map { session in
-                [
-                    session.id.uuidString,
-                    session.taskID.uuidString,
-                    csv(session.taskTitle),
-                    csv(session.category),
-                    formatter.string(from: session.startedAt),
-                    session.endedAt.map(formatter.string(from:)) ?? "",
-                    String(Int(session.plannedDuration)),
-                    String(Int(session.actualFocusDuration)),
-                    String(Int(session.pausedDuration)),
-                    session.modeRaw,
-                    session.statusRaw,
-                    session.completionStateRaw ?? "",
-                    session.distractionSourceRaw ?? "",
-                    csv(session.note)
-                ].joined(separator: ",")
-            }.joined(separator: "\n")
-            data = Data((header + rows + "\n").utf8)
-        }
-        try data.write(to: url, options: .atomic)
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        return try encoder.encode(payload)
     }
 
     private static func csv(_ value: String) -> String {

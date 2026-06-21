@@ -6,9 +6,11 @@ struct MenuBarView: View {
     @Environment(\.openWindow) private var openWindow
 
     private var activeTasks: [FocusTask] {
-        dataStore.tasks.filter {
-            !$0.archived && !(dataStore.project(id: $0.projectID)?.archived ?? false)
-        }
+        dataStore.startableTasks
+    }
+
+    private var preferredTask: FocusTask? {
+        dataStore.preferredStartTask
     }
 
     var body: some View {
@@ -39,7 +41,7 @@ struct MenuBarView: View {
                 .buttonStyle(.plain)
                 .help("退出 Moss")
             }
-            .font(.system(size: 12, weight: .medium))
+            .font(MossTypography.font(12, weight: .medium))
             .foregroundStyle(.secondary)
         }
         .padding(16)
@@ -73,7 +75,7 @@ struct MenuBarView: View {
                 Spacer()
             }
 
-            if let first = activeTasks.first {
+            if let first = preferredTask {
                 Button {
                     store.startLastTask()
                 } label: {
@@ -83,7 +85,7 @@ struct MenuBarView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             Text(first.title)
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(MossTypography.font(14, weight: .semibold))
                                 .lineLimit(1)
                         }
                         Spacer()
@@ -140,7 +142,7 @@ struct MenuBarView: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(store.phase == .breakTime ? MossTheme.apricot : MossTheme.sage)
                     Text(store.displayTime.clockString)
-                        .font(.system(size: 25, weight: .bold, design: .rounded))
+                        .font(MossTypography.font(25, weight: .bold))
                         .monospacedDigit()
                 }
                 Spacer()
@@ -152,14 +154,14 @@ struct MenuBarView: View {
             if store.phase != .breakTime {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(store.currentTaskTitle)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(MossTypography.font(14, weight: .semibold))
                     Text(store.currentCategory)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             } else {
                 Text(BreakPrompt.current)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(MossTypography.font(14, weight: .medium))
             }
 
             HStack(spacing: 8) {

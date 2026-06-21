@@ -38,6 +38,24 @@ enum TimerActivity: String, Codable, CaseIterable, Identifiable {
     var countsDown: Bool { self == .pomodoro || self == .countdown }
 }
 
+struct FocusTaskDefaults {
+    var focusDuration: TimeInterval
+    var breakDuration: TimeInterval
+    var warmupDuration: TimeInterval
+    var discardThreshold: TimeInterval
+
+    static func load(from defaults: UserDefaults = .standard) -> FocusTaskDefaults {
+        let focusMinutes = defaults.object(forKey: "focusMinutes") as? Int ?? 25
+        let breakMinutes = defaults.object(forKey: "breakMinutes") as? Int ?? 5
+        return FocusTaskDefaults(
+            focusDuration: TimeInterval(max(1, focusMinutes) * 60),
+            breakDuration: TimeInterval(max(1, breakMinutes) * 60),
+            warmupDuration: 60,
+            discardThreshold: 120
+        )
+    }
+}
+
 enum FocusMode: String, Codable, CaseIterable {
     case standard
     case ignition

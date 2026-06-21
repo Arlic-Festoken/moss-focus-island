@@ -48,8 +48,11 @@ struct SettingsView: View {
                         .padding(.vertical, 4)
                 }
                 Section("计时") {
-                    Stepper("标准专注：\(focusMinutes) 分钟", value: $focusMinutes, in: 5...90, step: 5)
-                    Stepper("休息：\(breakMinutes) 分钟", value: $breakMinutes, in: 1...30)
+                    Stepper("新任务默认专注：\(focusMinutes) 分钟", value: $focusMinutes, in: 5...90, step: 5)
+                    Stepper("新任务默认休息：\(breakMinutes) 分钟", value: $breakMinutes, in: 1...30)
+                    Text("只影响之后创建的任务；已有任务仍使用各自保存的设置。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 Section("专注岛") {
                     Toggle("显示顶部专注岛", isOn: $showNotchIsland)
@@ -76,7 +79,7 @@ struct SettingsView: View {
                                 .frame(width: 38, alignment: .trailing)
                         }
                         HStack {
-                            Text("可以在预设位置基础上继续微调。")
+                            Text("可以在预设位置基础上继续微调，也可以直接拖动专注岛。")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             Spacer()
@@ -97,10 +100,20 @@ struct SettingsView: View {
                     LabeledContent("数据位置", value: "仅存储在这台 Mac")
                     HStack {
                         Button("导出 JSON") {
-                            try? ExportService.export(tasks: dataStore.tasks, sessions: dataStore.sessions, format: .json)
+                            try? ExportService.export(
+                                projects: dataStore.projects,
+                                tasks: dataStore.tasks,
+                                sessions: dataStore.sessions,
+                                format: .json
+                            )
                         }
                         Button("导出 CSV") {
-                            try? ExportService.export(tasks: dataStore.tasks, sessions: dataStore.sessions, format: .csv)
+                            try? ExportService.export(
+                                projects: dataStore.projects,
+                                tasks: dataStore.tasks,
+                                sessions: dataStore.sessions,
+                                format: .csv
+                            )
                         }
                     }
                 }
@@ -235,7 +248,7 @@ private struct ThemePicker: View {
                             }
                         }
                         Text(theme.title)
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(MossTypography.font(13, weight: .semibold))
                         Text(theme.subtitle)
                             .font(.caption2)
                             .foregroundStyle(.secondary)

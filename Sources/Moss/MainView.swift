@@ -22,6 +22,7 @@ enum AppSection: String, CaseIterable, Identifiable {
 
 struct MainView: View {
     @EnvironmentObject private var store: AppStore
+    @Environment(\.openWindow) private var openWindow
     @AppStorage("selectedSection") private var selectedSectionRaw = AppSection.today.rawValue
     @State private var isAddingTask = false
     @State private var isAddingProject = false
@@ -42,7 +43,7 @@ struct MainView: View {
                         .foregroundStyle(MossTheme.sage)
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Moss")
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .font(MossTypography.font(18, weight: .bold))
                         Text("专注岛")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -55,7 +56,7 @@ struct MainView: View {
 
                 List(AppSection.allCases, selection: selection) { section in
                     Label(section.rawValue, systemImage: section.icon)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(MossTypography.font(14, weight: .medium))
                         .tag(section)
                         .listRowBackground(
                             selection.wrappedValue == section
@@ -84,14 +85,15 @@ struct MainView: View {
         .background(MossTheme.paper)
         .background(WindowConfigurator())
         .frame(minWidth: 900, minHeight: 620)
+        .onAppear {
+            MainWindowRouter.open = {
+                openWindow(id: "main")
+                NSApplication.shared.activate(ignoringOtherApps: true)
+            }
+        }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    store.startLastTask()
-                } label: {
-                    Label("开始上一次", systemImage: "play.fill")
-                }
-                .help("⌘⇧F")
+                focusToolbarControls
 
                 Menu {
                     Button("新任务") { isAddingTask = true }
@@ -125,7 +127,7 @@ struct MainView: View {
         .overlay(alignment: .top) {
             if let message = store.transientMessage {
                 Text(message)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(MossTypography.font(13, weight: .medium))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 9)
                     .background(.regularMaterial, in: Capsule())
@@ -135,6 +137,59 @@ struct MainView: View {
             }
         }
         .animation(.easeInOut(duration: 0.22), value: store.transientMessage)
+    }
+
+    @ViewBuilder
+    private var focusToolbarControls: some View {
+        switch store.phase {
+        case .idle:
+            Button {
+                store.startLastTask()
+            } label: {
+                Label("开始上一次", systemImage: "play.fill")
+            }
+            .help("⌘⇧F")
+        case .preparing:
+            Button {
+                store.cancelStart()
+            } label: {
+                Label("取消开始", systemImage: "xmark")
+            }
+        case .focusing:
+            Button {
+                store.pause()
+            } label: {
+                Label("暂停", systemImage: "pause.fill")
+            }
+            Button {
+                store.requestEnd()
+            } label: {
+                Label("结束并记录", systemImage: "stop.fill")
+            }
+        case .paused:
+            Button {
+                store.resume()
+            } label: {
+                Label("继续", systemImage: "play.fill")
+            }
+            Button {
+                store.requestEnd()
+            } label: {
+                Label("结束并记录", systemImage: "stop.fill")
+            }
+        case .breakTime:
+            Button {
+                store.skipBreak()
+            } label: {
+                Label("结束休息", systemImage: "forward.end.fill")
+            }
+        case .awaitingReview:
+            Button {
+                store.isReviewPresented = true
+            } label: {
+                Label("完成记录", systemImage: "checkmark")
+            }
+        }
     }
 }
 
@@ -158,7 +213,7 @@ private struct SidebarFocusStatus: View {
                         Text(store.phase == .paused ? "暂停中" : store.phase == .breakTime ? "休息中" : store.phase == .preparing ? "进入状态" : "专注中")
                             .font(.caption.weight(.semibold))
                         Text(store.displayTime.clockString)
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .font(MossTypography.font(14, weight: .bold))
                             .monospacedDigit()
                     }
                     Spacer()

@@ -39,7 +39,7 @@ struct InsightsView: View {
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("洞察")
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .font(MossTypography.font(30, weight: .bold))
                     Text("只保留能改变明天行动的指标。")
                         .foregroundStyle(.secondary)
                 }
@@ -61,7 +61,7 @@ struct InsightsView: View {
                             .font(.title3.bold())
                         ForEach(weeklyObservations, id: \.self) { observation in
                             Label(observation, systemImage: "leaf")
-                                .font(.system(size: 14))
+                                .font(MossTypography.font(14))
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -146,7 +146,7 @@ struct InsightsView: View {
                             CategoryGlyph(category: item.category)
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(item.category)
-                                    .font(.system(size: 13, weight: .semibold))
+                                    .font(MossTypography.font(13, weight: .semibold))
                                 Text(item.seconds.compactDuration)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -195,7 +195,7 @@ private struct MetricTile: View {
             Image(systemName: icon)
                 .foregroundStyle(MossTheme.sage)
             Text(value)
-                .font(.system(size: 21, weight: .bold, design: .rounded))
+                .font(MossTypography.font(21, weight: .bold))
                 .monospacedDigit()
             Text(title)
                 .font(.caption)

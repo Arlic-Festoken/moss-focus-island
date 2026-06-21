@@ -10,9 +10,28 @@ final class DataStore: ObservableObject {
     @Published private(set) var reflections: [Reflection] = []
     @Published private(set) var snapshots: [DailySnapshot] = []
 
+    var startableTasks: [FocusTask] {
+        tasks.filter {
+            !$0.archived && !(project(id: $0.projectID)?.archived ?? false)
+        }
+    }
+
+    var preferredStartTask: FocusTask? {
+        Self.preferredStartTask(from: startableTasks, sessions: sessions)
+    }
+
+    static func preferredStartTask(from tasks: [FocusTask], sessions: [FocusSession]) -> FocusTask? {
+        let sortedTasks = tasks.sorted { $0.sortOrder < $1.sortOrder }
+        let recentSessions = sessions.sorted { $0.startedAt > $1.startedAt }
+        return recentSessions.first.flatMap { session in
+            sortedTasks.first { $0.id == session.taskID }
+        } ?? sortedTasks.first
+    }
+
     private let fileURL: URL
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private var loadedPersistedDatabase = false
 
     init() {
         let applicationSupport = FileManager.default.urls(
@@ -163,12 +182,13 @@ final class DataStore: ObservableObject {
         interruptions = database.interruptions
         reflections = database.reflections
         snapshots = database.snapshots
+        loadedPersistedDatabase = true
         sortProjects()
         sortTasks()
     }
 
     private func seedIfNeeded() {
-        guard tasks.isEmpty else { return }
+        guard !loadedPersistedDatabase else { return }
         let study = FocusProject(title: "计算机组成原理", symbol: "cpu.fill", sortOrder: 0)
         let english = FocusProject(title: "英语听力", symbol: "text.bubble.fill", sortOrder: 1)
         let development = FocusProject(title: "项目开发", symbol: "hammer.fill", sortOrder: 2)

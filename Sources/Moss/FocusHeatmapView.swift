@@ -157,7 +157,7 @@ struct FocusHeatmapView: View {
                 let month = Calendar.current.component(.month, from: date)
                 let previousMonth = previous.map { Calendar.current.component(.month, from: $0) }
                 Text(previousMonth != month ? "\(month)月" : "")
-                    .font(.system(size: 9, weight: .medium))
+                    .font(MossTypography.font(9, weight: .medium))
                     .foregroundStyle(.secondary)
                     .frame(width: cellSize, alignment: .leading)
             }
@@ -168,7 +168,7 @@ struct FocusHeatmapView: View {
         VStack(spacing: cellSpacing) {
             ForEach(0..<7, id: \.self) { weekday in
                 Text(weekday == 1 ? "一" : weekday == 3 ? "三" : weekday == 5 ? "五" : "")
-                    .font(.system(size: 8))
+                    .font(MossTypography.font(8))
                     .foregroundStyle(.secondary)
                     .frame(width: weekdayWidth, height: cellSize, alignment: .trailing)
             }
@@ -235,7 +235,7 @@ private struct HeatmapStat: View {
     var body: some View {
         VStack(spacing: 3) {
             Text(value)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(MossTypography.font(15, weight: .semibold))
                 .monospacedDigit()
             Text(label)
                 .font(.caption2)

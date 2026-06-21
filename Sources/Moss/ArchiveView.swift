@@ -17,17 +17,27 @@ struct ArchiveView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 5) {
                         Text("归档")
-                            .font(.system(size: 30, weight: .bold, design: .rounded))
+                            .font(MossTypography.font(30, weight: .bold))
                         Text("完成的任务可以安静留在这里。")
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
                     Menu("导出本地数据") {
                         Button("导出 JSON") {
-                            try? ExportService.export(tasks: dataStore.tasks, sessions: dataStore.sessions, format: .json)
+                            try? ExportService.export(
+                                projects: dataStore.projects,
+                                tasks: dataStore.tasks,
+                                sessions: dataStore.sessions,
+                                format: .json
+                            )
                         }
                         Button("导出 CSV") {
-                            try? ExportService.export(tasks: dataStore.tasks, sessions: dataStore.sessions, format: .csv)
+                            try? ExportService.export(
+                                projects: dataStore.projects,
+                                tasks: dataStore.tasks,
+                                sessions: dataStore.sessions,
+                                format: .csv
+                            )
                         }
                     }
                     .menuStyle(.borderlessButton)

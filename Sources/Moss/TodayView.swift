@@ -4,7 +4,7 @@ struct TodayView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var dataStore: DataStore
     private var activeTasks: [FocusTask] {
-        dataStore.tasks.filter { !$0.archived }
+        dataStore.startableTasks
     }
 
     private var activeProjects: [FocusProject] {
@@ -16,6 +16,10 @@ struct TodayView: View {
             sessions: dataStore.sessions,
             interruptions: dataStore.interruptions
         )
+    }
+
+    private var isShowingCurrentSession: Bool {
+        store.isActive || store.phase == .awaitingReview
     }
 
     var body: some View {
@@ -36,7 +40,7 @@ struct TodayView: View {
         HStack {
             VStack(alignment: .leading, spacing: 5) {
                 Text(greeting)
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .font(MossTypography.font(30, weight: .bold))
                 Text(Date.now.formatted(.dateTime.month(.wide).day().weekday(.wide)))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -48,20 +52,24 @@ struct TodayView: View {
         MossCard {
             HStack(spacing: 26) {
                 VStack(alignment: .leading, spacing: 7) {
-                    Text(store.phase == .preparing ? "正在进入状态" : store.isActive ? "此刻正在专注" : "今天已经专注")
+                    Text(statusTitle)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(MossTheme.sage)
-                    Text(store.isActive ? store.displayTime.clockString : metrics.totalFocus.compactDuration)
-                        .font(.system(size: 42, weight: .bold, design: .rounded))
+                    Text(isShowingCurrentSession ? store.displayTime.clockString : metrics.totalFocus.compactDuration)
+                        .font(MossTypography.font(42, weight: .bold))
                         .monospacedDigit()
-                    Text(store.isActive
+                    Text(isShowingCurrentSession
                          ? "\(store.currentCategory) · \(store.currentTaskTitle)"
                          : "完成 \(metrics.completedCount) 个专注段")
-                        .font(.system(size: 14))
+                        .font(MossTypography.font(14))
                         .foregroundStyle(.secondary)
+                    if isShowingCurrentSession {
+                        TodayFocusControls()
+                            .padding(.top, 7)
+                    }
                 }
                 Spacer()
-                if store.isActive {
+                if isShowingCurrentSession {
                     ProgressRing(
                         progress: store.progress,
                         lineWidth: 9,
@@ -95,6 +103,17 @@ struct TodayView: View {
                     }
                 }
             }
+        }
+    }
+
+    private var statusTitle: String {
+        switch store.phase {
+        case .preparing: "正在进入状态"
+        case .focusing: "此刻正在专注"
+        case .paused: "专注已暂停"
+        case .breakTime: "休息中"
+        case .awaitingReview: "等待记录这一段"
+        case .idle: "今天已经专注"
         }
     }
 
@@ -176,6 +195,83 @@ struct TodayView: View {
     }
 }
 
+private struct TodayFocusControls: View {
+    @EnvironmentObject private var store: AppStore
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 9) { controls }
+            VStack(alignment: .leading, spacing: 9) { controls }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("当前专注操作")
+    }
+
+    @ViewBuilder
+    private var controls: some View {
+        switch store.phase {
+        case .preparing:
+            Button {
+                store.cancelStart()
+            } label: {
+                Label("取消开始", systemImage: "xmark")
+            }
+            .buttonStyle(CapsuleButtonStyle(tint: MossTheme.brick))
+        case .focusing:
+            Button {
+                store.pause()
+            } label: {
+                Label("暂停", systemImage: "pause.fill")
+            }
+            .buttonStyle(CapsuleButtonStyle())
+
+            Button {
+                store.beginOrReturnFromInterruption()
+            } label: {
+                Label("记录打断", systemImage: "arrow.up.right")
+            }
+            .buttonStyle(CapsuleButtonStyle(tint: MossTheme.apricot))
+
+            Button {
+                store.requestEnd()
+            } label: {
+                Label("结束并记录", systemImage: "stop.fill")
+            }
+            .buttonStyle(CapsuleButtonStyle(tint: MossTheme.brick, prominent: true, prominentForeground: .white))
+        case .paused:
+            Button {
+                store.resume()
+            } label: {
+                Label("继续", systemImage: "play.fill")
+            }
+            .buttonStyle(CapsuleButtonStyle(tint: MossTheme.mint, prominent: true))
+
+            Button {
+                store.requestEnd()
+            } label: {
+                Label("结束并记录", systemImage: "stop.fill")
+            }
+            .buttonStyle(CapsuleButtonStyle(tint: MossTheme.brick, prominent: true, prominentForeground: .white))
+        case .breakTime:
+            Button {
+                store.skipBreak()
+            } label: {
+                Label("结束休息", systemImage: "forward.end.fill")
+            }
+            .buttonStyle(CapsuleButtonStyle(tint: MossTheme.apricot, prominent: true))
+        case .awaitingReview:
+            Button {
+                store.isReviewPresented = true
+            } label: {
+                Label("完成记录", systemImage: "checkmark")
+            }
+            .buttonStyle(CapsuleButtonStyle(prominent: true))
+        case .idle:
+            EmptyView()
+        }
+    }
+}
+
 private struct ProjectTaskSection: View {
     @EnvironmentObject private var dataStore: DataStore
     let project: FocusProject
@@ -197,7 +293,7 @@ private struct ProjectTaskSection: View {
                     .foregroundStyle(MossTheme.sage)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(project.title)
-                        .font(.system(size: 14, weight: .bold))
+                        .font(MossTypography.font(14, weight: .bold))
                     Text("\(tasks.count) 个任务 · \(totalFocus.compactDuration)")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -265,7 +361,7 @@ private struct TaskCapsuleRow: View {
             )
             VStack(alignment: .leading, spacing: 4) {
                 Text(task.title)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(MossTypography.font(15, weight: .semibold))
                 Text("\(task.timerActivity.title) · 已专注 \(totalFocus.compactDuration) · 完成 \(task.completedSessions) 段")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -275,7 +371,7 @@ private struct TaskCapsuleRow: View {
             Spacer()
             if task.estimatedSessions > 0 {
                 Text("\(min(task.completedSessions, task.estimatedSessions))/\(task.estimatedSessions)")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .font(MossTypography.font(12, weight: .bold))
                     .foregroundStyle(MossTheme.sage)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 5)
@@ -392,7 +488,7 @@ private struct FocusWeatherCard: View {
                 Text(weather.title)
                     .font(.title3.bold())
                 Text(weather.advice)
-                    .font(.system(size: 13))
+                    .font(MossTypography.font(13))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -441,8 +537,9 @@ struct TimelineRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(session.startedAt.formatted(.dateTime.hour().minute()))
-                .font(.system(size: 12, design: .monospaced))
+                Text(session.startedAt.formatted(.dateTime.hour().minute()))
+                    .font(MossTypography.font(12))
+                    .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .frame(width: 45, alignment: .leading)
             RoundedRectangle(cornerRadius: 3)
@@ -457,8 +554,8 @@ struct TimelineRow: View {
                     }
                 }
             VStack(alignment: .leading, spacing: 2) {
-                Text(session.taskTitle)
-                    .font(.system(size: 13, weight: .semibold))
+                        Text(session.taskTitle)
+                            .font(MossTypography.font(13, weight: .semibold))
                     .lineLimit(1)
                 Text("\(session.category) · \(session.actualFocusDuration.compactDuration)")
                     .font(.caption2)
@@ -489,7 +586,7 @@ private struct DailyFeedbackCard: View {
                             .frame(width: 22, height: 22)
                             .background(MossTheme.sage.opacity(0.1), in: Circle())
                         Text(item)
-                            .font(.system(size: 13))
+                            .font(MossTypography.font(13))
                             .foregroundStyle(index == 2 ? .primary : .secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }

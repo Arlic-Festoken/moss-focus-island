@@ -140,8 +140,11 @@ private final class MossPanel: NSPanel {
 struct NotchIslandView: View {
     @EnvironmentObject private var store: AppStore
     @State private var hovering = false
+    @State private var dragStartOffset: CGSize?
     @AppStorage("colorTheme") private var colorTheme = MossColorTheme.sage.rawValue
     @AppStorage("islandPlacement") private var islandPlacement = IslandPlacement.topCenter.rawValue
+    @AppStorage("islandOffsetX") private var islandOffsetX = 0.0
+    @AppStorage("islandOffsetY") private var islandOffsetY = 0.0
 
     private var hasNotch: Bool {
         (NSScreen.main?.safeAreaInsets.top ?? 0 > 0)
@@ -164,6 +167,13 @@ struct NotchIslandView: View {
         .onChange(of: islandPlacement) { _, _ in
             NotchPanelController.shared.reposition()
         }
+        .onChange(of: islandOffsetX) { _, _ in
+            NotchPanelController.shared.reposition()
+        }
+        .onChange(of: islandOffsetY) { _, _ in
+            NotchPanelController.shared.reposition()
+        }
+        .simultaneousGesture(islandDragGesture)
         .animation(.smooth(duration: 0.28), value: hovering)
         .animation(.smooth(duration: 0.28), value: store.phase)
         .onHover { inside in
@@ -176,6 +186,31 @@ struct NotchIslandView: View {
         }
     }
 
+    private var islandDragGesture: some Gesture {
+        DragGesture(minimumDistance: 4)
+            .onChanged(handleIslandDrag)
+            .onEnded { _ in
+                dragStartOffset = nil
+                NotchPanelController.shared.reposition()
+            }
+    }
+
+    private func handleIslandDrag(_ value: DragGesture.Value) {
+        let base = dragStartOffset ?? CGSize(
+            width: CGFloat(islandOffsetX),
+            height: CGFloat(islandOffsetY)
+        )
+        if dragStartOffset == nil {
+            dragStartOffset = base
+        }
+        islandOffsetX = clampedOffset(Double(base.width + value.translation.width), limit: 420)
+        islandOffsetY = clampedOffset(Double(base.height - value.translation.height), limit: 260)
+    }
+
+    private func clampedOffset(_ value: Double, limit: Double) -> Double {
+        min(max(value, -limit), limit)
+    }
+
     private var idleIsland: some View {
         Button {
             store.openMainWindow()
@@ -185,7 +220,7 @@ struct NotchIslandView: View {
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(MossTheme.mint)
                 Text("今日 \(store.todayCompletedCount) 段")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .font(MossTypography.font(11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.8))
             }
             .padding(.horizontal, 13)
@@ -193,6 +228,7 @@ struct NotchIslandView: View {
             .background(Color.black.opacity(0.93), in: Capsule())
         }
         .buttonStyle(.plain)
+        .help("打开 Moss；拖动可移动专注岛")
         .padding(.top, hasNotch ? 7 : 0)
     }
 
@@ -206,7 +242,7 @@ struct NotchIslandView: View {
                         ProgressRing(progress: store.progress, lineWidth: 3, tint: phaseTint)
                             .frame(width: 20, height: 20)
                         Text(store.displayTime.clockString)
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .font(MossTypography.font(13, weight: .bold))
                             .monospacedDigit()
                             .foregroundStyle(.white)
                     }
@@ -225,14 +261,14 @@ struct NotchIslandView: View {
                                 .foregroundStyle(.white.opacity(0.58))
                         }
                     }
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(MossTypography.font(11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.9))
                 }
             }
         }
         .buttonStyle(.plain)
         .accessibilityLabel("打开专注控制")
-        .help("打开专注控制")
+        .help("打开专注控制；拖动可移动专注岛")
         .padding(.top, hasNotch ? 2 : 0)
     }
 
@@ -248,10 +284,10 @@ struct NotchIslandView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(phaseTitle)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(MossTypography.font(10, weight: .semibold))
                     .foregroundStyle(phaseTint)
                 Text(store.phase == .breakTime ? BreakPrompt.current : store.currentTaskTitle)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(MossTypography.font(12, weight: .semibold))
                     .lineLimit(1)
                     .foregroundStyle(.white)
             }
@@ -259,7 +295,7 @@ struct NotchIslandView: View {
             Spacer(minLength: 5)
 
             Text(store.displayTime.clockString)
-                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .font(MossTypography.font(20, weight: .bold))
                 .monospacedDigit()
                 .foregroundStyle(.white)
 

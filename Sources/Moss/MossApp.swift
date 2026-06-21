@@ -2,6 +2,11 @@ import AppKit
 import SwiftUI
 
 final class MossAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        let launchSilently = (UserDefaults.standard.object(forKey: "launchSilently") as? Bool) ?? true
+        NSApp.setActivationPolicy(launchSilently ? .accessory : .regular)
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         let launchSilently = (UserDefaults.standard.object(forKey: "launchSilently") as? Bool) ?? true
         guard launchSilently else { return }

@@ -13,7 +13,7 @@ struct ReviewView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("这段怎么样？")
-                        .font(.system(size: 25, weight: .bold, design: .rounded))
+                        .font(MossTypography.font(25, weight: .bold))
                     Text(store.currentTaskTitle)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -95,8 +95,8 @@ struct ReviewView: View {
                     selection.wrappedValue = value
                 } label: {
                     Text(label(for: value))
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(selection.wrappedValue == value ? .white : MossTheme.sageDeep)
+                        .font(MossTypography.font(13, weight: .semibold))
+                        .foregroundStyle(selection.wrappedValue == value ? MossTheme.current.accentForeground : MossTheme.sageDeep)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
                         .background(

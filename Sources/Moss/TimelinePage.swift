@@ -40,7 +40,7 @@ struct TimelinePage: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 5) {
                         Text("时间视图")
-                            .font(.system(size: 30, weight: .bold, design: .rounded))
+                            .font(MossTypography.font(30, weight: .bold))
                         Text("从一天的波形，到一整年的投入。")
                             .foregroundStyle(.secondary)
                     }
@@ -192,8 +192,8 @@ struct TimelinePage: View {
                                         .overlay {
                                             if item.duration > 0 {
                                                 Text(item.duration.compactDuration)
-                                                    .font(.system(size: 9, weight: .bold))
-                                                    .foregroundStyle(.white)
+                                                    .font(MossTypography.font(9, weight: .bold))
+                                                    .foregroundStyle(monthTextColor(duration: item.duration))
                                             }
                                         }
                                 }
@@ -263,6 +263,10 @@ struct TimelinePage: View {
         }
     }
 
+    private func monthTextColor(duration: TimeInterval) -> Color {
+        duration < 60 * 60 ? MossTheme.sageDeep : MossTheme.current.accentForeground
+    }
+
     private func isInSelectedMonth(_ date: Date) -> Bool {
         Calendar.current.isDate(date, equalTo: selectedDate, toGranularity: .month)
     }
@@ -299,7 +303,7 @@ private struct PeriodSummary: View {
             }
             Spacer()
             Text(total.chineseDuration)
-                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .font(MossTypography.font(22, weight: .bold))
                 .foregroundStyle(MossTheme.sage)
         }
         .padding(16)
@@ -333,12 +337,13 @@ private struct DetailedTimelineRow: View {
             VStack(alignment: .leading, spacing: 9) {
                 HStack {
                     Text(session.startedAt.formatted(.dateTime.hour().minute()))
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .font(MossTypography.font(12, weight: .medium))
+                        .monospacedDigit()
                         .foregroundStyle(.secondary)
                     Text(session.taskTitle).font(.headline)
                     Spacer()
                     Text(session.actualFocusDuration.compactDuration)
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .font(MossTypography.font(13, weight: .bold))
                         .foregroundStyle(MossTheme.sage)
                 }
                 HStack(spacing: 10) {

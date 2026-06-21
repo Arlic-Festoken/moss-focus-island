@@ -32,6 +32,23 @@ struct PersistedRun: Codable {
     var pauseStartedAt: Date?
     var mode: FocusMode
     var timerActivity: TimerActivity
+    var activeInterruptionID: UUID?
+    var focusEndedAt: Date?
+    var breakStartedAt: Date?
+    var breakDuration: TimeInterval
+}
+
+private struct LegacyPersistedRunV1: Codable {
+    var phase: FocusPhase
+    var sessionID: UUID
+    var taskID: UUID
+    var taskTitle: String
+    var category: String
+    var startedAt: Date
+    var plannedDuration: TimeInterval
+    var accumulatedPausedDuration: TimeInterval
+    var pauseStartedAt: Date?
+    var mode: FocusMode
     var focusEndedAt: Date?
     var breakStartedAt: Date?
     var breakDuration: TimeInterval
@@ -99,7 +116,6 @@ final class AppStore: ObservableObject {
     func configure(with dataStore: DataStore) {
         guard self.dataStore == nil else { return }
         self.dataStore = dataStore
-        defaults.removeObject(forKey: "moss.activeRun.v1")
         restoreRunIfNeeded()
         observeSystemEvents()
         if phase == .preparing || phase == .focusing || phase == .breakTime {
@@ -147,6 +163,7 @@ final class AppStore: ObservableObject {
             pauseStartedAt: nil,
             mode: mode,
             timerActivity: selectedActivity,
+            activeInterruptionID: nil,
             focusEndedAt: nil,
             breakStartedAt: nil,
             breakDuration: task.breakDuration
@@ -159,14 +176,7 @@ final class AppStore: ObservableObject {
 
     func startLastTask() {
         guard let dataStore else { return }
-        let sessions = dataStore.sessions.sorted { $0.startedAt > $1.startedAt }
-        let tasks = dataStore.tasks.filter {
-            !$0.archived && !(dataStore.project(id: $0.projectID)?.archived ?? false)
-        }
-        let preferred = sessions.first.flatMap { session in
-            tasks.first { $0.id == session.taskID }
-        } ?? tasks.sorted { $0.sortOrder < $1.sortOrder }.first
-        if let preferred {
+        if let preferred = dataStore.preferredStartTask {
             start(task: preferred)
         } else {
             showTransient("先在主页添加一个任务")
@@ -232,12 +242,21 @@ final class AppStore: ObservableObject {
 
     func cancelReview() {
         guard var current = run, phase == .awaitingReview else { return }
+        if current.pauseStartedAt == nil, let reviewStartedAt = current.focusEndedAt {
+            current.accumulatedPausedDuration += Date.now.timeIntervalSince(reviewStartedAt)
+        }
         current.focusEndedAt = nil
-        current.phase = activeWallElapsed(for: current) < current.warmupDuration ? .preparing : .focusing
+        if current.pauseStartedAt != nil {
+            current.phase = .paused
+        } else {
+            current.phase = activeWallElapsed(for: current) < current.warmupDuration ? .preparing : .focusing
+        }
         apply(current)
         isReviewPresented = false
         persistRun()
-        startTimer()
+        if current.phase != .paused {
+            startTimer()
+        }
     }
 
     func finishReview(
@@ -247,6 +266,16 @@ final class AppStore: ObservableObject {
         note: String
     ) {
         guard let current = run, let dataStore else { return }
+        if let interruptionID = activeInterruptionID {
+            dataStore.updateInterruption(id: interruptionID) { interruption in
+                interruption.endedAt = .now
+                interruption.reasonRaw = InterruptionReason.other.rawValue
+                interruption.returnedToSameTask = false
+            }
+            activeInterruptionID = nil
+            run?.activeInterruptionID = nil
+            interruptionNeedsReason = false
+        }
         let focused = calculatedElapsed(for: current)
         dataStore.updateSession(id: current.sessionID) { session in
             session.endedAt = .now
@@ -270,7 +299,7 @@ final class AppStore: ObservableObject {
 
         isReviewPresented = false
         showTransient("+\(focused.compactDuration) 已记录")
-        if completion == .completed && current.timerActivity == .pomodoro {
+        if current.timerActivity == .pomodoro {
             startBreak()
         } else {
             clearToIdle()
@@ -285,6 +314,8 @@ final class AppStore: ObservableObject {
             let interruption = Interruption(sessionID: current.sessionID)
             dataStore.addInterruption(interruption)
             activeInterruptionID = interruption.id
+            run?.activeInterruptionID = interruption.id
+            persistRun()
             interruptionNeedsReason = false
             showTransient("已记下这次打断，回来再点一下")
         } else {
@@ -300,6 +331,8 @@ final class AppStore: ObservableObject {
             interruption.returnedToSameTask = returned
         }
         activeInterruptionID = nil
+        run?.activeInterruptionID = nil
+        persistRun()
         interruptionNeedsReason = false
         showTransient("欢迎回来")
     }
@@ -318,6 +351,7 @@ final class AppStore: ObservableObject {
     }
 
     func openMainWindow() {
+        NSApplication.shared.setActivationPolicy(.regular)
         if let window = NSApplication.shared.windows.first(where: {
             $0.title == "Moss · 专注岛" && !($0 is NSPanel)
         }) {
@@ -346,6 +380,7 @@ final class AppStore: ObservableObject {
         currentTaskTitle = current.taskTitle
         currentCategory = current.category
         currentProjectTitle = current.projectTitle
+        activeInterruptionID = current.activeInterruptionID
         updateClock()
     }
 
@@ -448,13 +483,48 @@ final class AppStore: ObservableObject {
     }
 
     private func restoreRunIfNeeded() {
-        guard let data = defaults.data(forKey: runKey),
-              let restored = try? JSONDecoder().decode(PersistedRun.self, from: data) else {
-            defaults.removeObject(forKey: runKey)
+        if let data = defaults.data(forKey: runKey),
+           let restored = try? JSONDecoder().decode(PersistedRun.self, from: data) {
+            apply(restored)
+            isReviewPresented = restored.phase == .awaitingReview
             return
         }
+
+        defaults.removeObject(forKey: runKey)
+        let legacyKey = "moss.activeRun.v1"
+        guard let data = defaults.data(forKey: legacyKey),
+              let legacy = try? JSONDecoder().decode(LegacyPersistedRunV1.self, from: data) else {
+            defaults.removeObject(forKey: legacyKey)
+            return
+        }
+
+        let task = dataStore?.tasks.first { $0.id == legacy.taskID }
+        let project = dataStore?.project(id: task?.projectID)
+        let restored = PersistedRun(
+            phase: legacy.phase,
+            sessionID: legacy.sessionID,
+            taskID: legacy.taskID,
+            taskTitle: legacy.taskTitle,
+            projectID: task?.projectID,
+            projectTitle: project?.title ?? legacy.category,
+            category: legacy.category,
+            startedAt: legacy.startedAt,
+            plannedDuration: legacy.plannedDuration,
+            warmupDuration: 0,
+            discardThreshold: 0,
+            accumulatedPausedDuration: legacy.accumulatedPausedDuration,
+            pauseStartedAt: legacy.pauseStartedAt,
+            mode: legacy.mode,
+            timerActivity: legacy.mode == .ignition ? .countdown : (task?.timerActivity ?? .pomodoro),
+            activeInterruptionID: nil,
+            focusEndedAt: legacy.focusEndedAt,
+            breakStartedAt: legacy.breakStartedAt,
+            breakDuration: legacy.breakDuration
+        )
         apply(restored)
         isReviewPresented = restored.phase == .awaitingReview
+        persistRun()
+        defaults.removeObject(forKey: legacyKey)
     }
 
     private func clearPersistedRun() {

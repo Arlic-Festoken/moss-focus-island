@@ -15,15 +15,16 @@ struct TaskEditorView: View {
     @State private var discardMinutes: Int
 
     init(task: FocusTask? = nil, projectID: UUID? = nil) {
+        let defaults = FocusTaskDefaults.load()
         self.task = task
         _title = State(initialValue: task?.title ?? "")
         _projectID = State(initialValue: task?.projectID ?? projectID)
         _estimatedSessions = State(initialValue: task?.estimatedSessions ?? 1)
         _timerActivity = State(initialValue: task?.timerActivity ?? .pomodoro)
-        _focusMinutes = State(initialValue: max(1, Int((task?.focusDuration ?? 25 * 60) / 60)))
-        _breakMinutes = State(initialValue: max(1, Int((task?.breakDuration ?? 5 * 60) / 60)))
-        _warmupSeconds = State(initialValue: Int(task?.warmupDuration ?? 60))
-        _discardMinutes = State(initialValue: max(0, Int((task?.discardThreshold ?? 120) / 60)))
+        _focusMinutes = State(initialValue: max(1, Int((task?.focusDuration ?? defaults.focusDuration) / 60)))
+        _breakMinutes = State(initialValue: max(1, Int((task?.breakDuration ?? defaults.breakDuration) / 60)))
+        _warmupSeconds = State(initialValue: Int(task?.warmupDuration ?? defaults.warmupDuration))
+        _discardMinutes = State(initialValue: max(0, Int((task?.discardThreshold ?? defaults.discardThreshold) / 60)))
     }
 
     private var activeProjects: [FocusProject] {
@@ -83,7 +84,7 @@ struct TaskEditorView: View {
                                             in: RoundedRectangle(cornerRadius: 10)
                                         )
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(activity.title).font(.system(size: 13, weight: .semibold))
+                                        Text(activity.title).font(MossTypography.font(13, weight: .semibold))
                                         Text(activity.subtitle)
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
@@ -106,6 +107,9 @@ struct TaskEditorView: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel(activity.title)
+                            .accessibilityValue(timerActivity == activity ? "已选择" : "未选择")
+                            .accessibilityAddTraits(timerActivity == activity ? .isSelected : [])
                         }
                     }
                 }
