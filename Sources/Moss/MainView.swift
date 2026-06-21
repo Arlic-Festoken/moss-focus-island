@@ -82,6 +82,7 @@ struct MainView: View {
         }
         .background(MossTheme.paper)
         .background(WindowConfigurator())
+        .frame(minWidth: 900, minHeight: 620)
         .sheet(isPresented: $store.isReviewPresented) {
             ReviewView()
                 .environmentObject(store)

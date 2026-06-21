@@ -20,7 +20,6 @@ private final class ConfiguringView: NSView {
     func configureWindow() {
         DispatchQueue.main.async { [weak self] in
             guard let window = self?.window else { return }
-            window.identifier = NSUserInterfaceItemIdentifier("main")
             window.minSize = NSSize(width: 900, height: 620)
 
             let isTooSmall = window.frame.width < 900 || window.frame.height < 620

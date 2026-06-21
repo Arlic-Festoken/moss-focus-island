@@ -7,6 +7,7 @@ struct SettingsView: View {
     @AppStorage("breakMinutes") private var breakMinutes = 5
     @AppStorage("showNotchIsland") private var showNotchIsland = true
     @AppStorage("subtleSound") private var subtleSound = true
+    @AppStorage("launchSilently") private var launchSilently = true
     @AppStorage("colorTheme") private var colorTheme = MossColorTheme.sage.rawValue
     @AppStorage("fontTheme") private var fontTheme = MossFontTheme.rounded.rawValue
     @AppStorage("fontSize") private var fontSize = MossFontSize.standard.rawValue
@@ -17,6 +18,12 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             Form {
+                Section("启动") {
+                    Toggle("启动后仅在菜单栏驻留", isOn: $launchSilently)
+                    Text("下次启动时生效。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Section("外观主题") {
                     ThemePicker(selection: $colorTheme)
                         .padding(.vertical, 6)

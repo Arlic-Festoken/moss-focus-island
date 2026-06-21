@@ -307,14 +307,14 @@ final class AppStore: ObservableObject {
     }
 
     func openMainWindow() {
-        NSApplication.shared.activate(ignoringOtherApps: true)
         if let window = NSApplication.shared.windows.first(where: {
-            $0.title == "Moss · 专注岛" && $0.identifier?.rawValue != "moss.notch.panel"
+            $0.title == "Moss · 专注岛" && !($0 is NSPanel)
         }) {
             window.makeKeyAndOrderFront(nil)
         } else {
             MainWindowRouter.open?()
         }
+        NSApplication.shared.activate(ignoringOtherApps: true)
     }
 
     func showTransient(_ message: String) {

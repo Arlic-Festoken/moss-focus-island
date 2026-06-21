@@ -1,7 +1,24 @@
+import AppKit
 import SwiftUI
+
+final class MossAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        let launchSilently = (UserDefaults.standard.object(forKey: "launchSilently") as? Bool) ?? true
+        guard launchSilently else { return }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            NSApp.windows
+                .filter { $0.title == "Moss · 专注岛" && $0.isVisible }
+                .forEach { window in
+                    window.orderOut(nil)
+                }
+        }
+    }
+}
 
 @main
 struct MossApp: App {
+    @NSApplicationDelegateAdaptor(MossAppDelegate.self) private var appDelegate
     @StateObject private var store = AppStore()
     @StateObject private var dataStore = DataStore()
     @AppStorage("colorTheme") private var colorTheme = MossColorTheme.sage.rawValue
