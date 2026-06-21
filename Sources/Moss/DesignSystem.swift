@@ -171,7 +171,7 @@ struct CapsuleButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .semibold))
+            .font(MossTypography.font(13, weight: .semibold))
             .foregroundStyle(prominent ? Color.white : tint)
             .padding(.horizontal, 15)
             .padding(.vertical, 9)

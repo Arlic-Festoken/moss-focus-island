@@ -81,6 +81,7 @@ struct MainView: View {
             .background(MossTheme.paper)
         }
         .background(MossTheme.paper)
+        .background(WindowConfigurator())
         .sheet(isPresented: $store.isReviewPresented) {
             ReviewView()
                 .environmentObject(store)
@@ -129,9 +130,9 @@ private struct SidebarFocusStatus: View {
                     ProgressRing(progress: store.progress, lineWidth: 4)
                         .frame(width: 28, height: 28)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(store.phase == .paused ? "暂停中" : store.phase == .breakTime ? "休息中" : "专注中")
+                        Text(store.phase == .paused ? "暂停中" : store.phase == .breakTime ? "休息中" : store.phase == .preparing ? "进入状态" : "专注中")
                             .font(.caption.weight(.semibold))
-                        Text(store.remaining.clockString)
+                        Text(store.displayTime.clockString)
                             .font(.system(size: 14, weight: .bold, design: .rounded))
                             .monospacedDigit()
                     }

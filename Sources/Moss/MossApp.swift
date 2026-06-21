@@ -7,10 +7,11 @@ struct MossApp: App {
     @AppStorage("colorTheme") private var colorTheme = MossColorTheme.sage.rawValue
 
     var body: some Scene {
-        WindowGroup("Moss · 专注岛", id: "main") {
+        Window("Moss · 专注岛", id: "main") {
             MainView()
                 .environmentObject(store)
                 .environmentObject(dataStore)
+                .mossTypography()
                 .id(colorTheme)
                 .task {
                     store.configure(with: dataStore)
@@ -30,13 +31,13 @@ struct MossApp: App {
                     store.phase == .paused ? store.resume() : store.pause()
                 }
                 .keyboardShortcut("p", modifiers: [.command, .shift])
-                .disabled(store.phase != .focusing && store.phase != .paused)
+                .disabled(store.phase != .preparing && store.phase != .focusing && store.phase != .paused)
 
                 Button("结束当前专注") {
                     store.requestEnd()
                 }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
-                .disabled(store.phase != .focusing && store.phase != .paused)
+                .disabled(store.phase != .preparing && store.phase != .focusing && store.phase != .paused)
             }
         }
 
@@ -44,6 +45,7 @@ struct MossApp: App {
             MenuBarView()
                 .environmentObject(store)
                 .environmentObject(dataStore)
+                .mossTypography()
                 .id(colorTheme)
         }
         .menuBarExtraStyle(.window)
@@ -52,6 +54,7 @@ struct MossApp: App {
             SettingsView()
                 .environmentObject(store)
                 .environmentObject(dataStore)
+                .mossTypography()
                 .id(colorTheme)
         }
     }

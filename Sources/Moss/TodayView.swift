@@ -4,9 +4,14 @@ struct TodayView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var dataStore: DataStore
     @State private var isAddingTask = false
+    @State private var isAddingProject = false
 
     private var activeTasks: [FocusTask] {
         dataStore.tasks.filter { !$0.archived }
+    }
+
+    private var activeProjects: [FocusProject] {
+        dataStore.projects.filter { !$0.archived }
     }
 
     private var metrics: DailyMetrics {
@@ -42,6 +47,9 @@ struct TodayView: View {
         .sheet(isPresented: $isAddingTask) {
             TaskEditorView()
         }
+        .sheet(isPresented: $isAddingProject) {
+            ProjectEditorView()
+        }
     }
 
     private var header: some View {
@@ -54,10 +62,11 @@ struct TodayView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Button {
-                isAddingTask = true
+            Menu {
+                Button("新任务") { isAddingTask = true }
+                Button("新项目 / 文件夹") { isAddingProject = true }
             } label: {
-                Label("新任务", systemImage: "plus")
+                Label("新建", systemImage: "plus")
             }
             .buttonStyle(CapsuleButtonStyle())
         }
@@ -67,10 +76,10 @@ struct TodayView: View {
         MossCard {
             HStack(spacing: 26) {
                 VStack(alignment: .leading, spacing: 7) {
-                    Text(store.isActive ? "此刻正在专注" : "今天已经专注")
+                    Text(store.phase == .preparing ? "正在进入状态" : store.isActive ? "此刻正在专注" : "今天已经专注")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(MossTheme.sage)
-                    Text(store.isActive ? store.remaining.clockString : metrics.totalFocus.compactDuration)
+                    Text(store.isActive ? store.displayTime.clockString : metrics.totalFocus.compactDuration)
                         .font(.system(size: 42, weight: .bold, design: .rounded))
                         .monospacedDigit()
                     Text(store.isActive
@@ -136,12 +145,19 @@ struct TodayView: View {
                     )
                     .frame(height: 160)
                 } else {
-                    ForEach(activeTasks) { task in
-                        TaskCapsuleRow(task: task)
-                            .environmentObject(store)
-                        if task.id != activeTasks.last?.id {
-                            Divider().opacity(0.55)
+                    ForEach(activeProjects) { project in
+                        let projectTasks = activeTasks.filter { $0.projectID == project.id }
+                        if !projectTasks.isEmpty {
+                            ProjectTaskSection(project: project, tasks: projectTasks)
                         }
+                    }
+                    let ungrouped = activeTasks.filter { $0.projectID == nil }
+                    if !ungrouped.isEmpty {
+                        ProjectTaskSection(
+                            project: FocusProject(title: "未分类", symbol: "tray.fill"),
+                            tasks: ungrouped,
+                            isSynthetic: true
+                        )
                     }
                 }
             }
@@ -156,19 +172,93 @@ struct TodayView: View {
     }
 }
 
+private struct ProjectTaskSection: View {
+    @EnvironmentObject private var dataStore: DataStore
+    let project: FocusProject
+    let tasks: [FocusTask]
+    var isSynthetic = false
+    @State private var isAddingTask = false
+    @State private var isEditingProject = false
+
+    private var totalFocus: TimeInterval {
+        isSynthetic
+            ? tasks.reduce(0) { $0 + dataStore.totalFocus(for: $1.id) }
+            : dataStore.totalFocus(forProjectID: project.id)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack {
+                Image(systemName: project.symbol)
+                    .foregroundStyle(MossTheme.sage)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(project.title)
+                        .font(.system(size: 14, weight: .bold))
+                    Text("\(tasks.count) 个任务 · \(totalFocus.compactDuration)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button {
+                    isAddingTask = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(.plain)
+                if !isSynthetic {
+                    Menu {
+                        Button("编辑项目") { isEditingProject = true }
+                        Button("归档项目") {
+                            dataStore.archiveProject(id: project.id, archived: true)
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                }
+            }
+            .padding(.top, 4)
+
+            ForEach(tasks) { task in
+                TaskCapsuleRow(task: task)
+                if task.id != tasks.last?.id {
+                    Divider().opacity(0.55)
+                }
+            }
+        }
+        .padding(.vertical, 6)
+        .sheet(isPresented: $isAddingTask) {
+            TaskEditorView(projectID: isSynthetic ? nil : project.id)
+        }
+        .sheet(isPresented: $isEditingProject) {
+            ProjectEditorView(project: project)
+        }
+    }
+}
+
 private struct TaskCapsuleRow: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var dataStore: DataStore
     let task: FocusTask
     @State private var isEditing = false
+    @State private var isShowingDetail = false
+    @State private var isConfirmingDelete = false
+
+    private var totalFocus: TimeInterval {
+        dataStore.totalFocus(for: task.id)
+    }
 
     var body: some View {
         HStack(spacing: 13) {
-            CategoryGlyph(category: task.category)
+            CategoryGlyph(
+                category: task.category,
+                symbol: dataStore.project(id: task.projectID)?.symbol
+            )
             VStack(alignment: .leading, spacing: 4) {
                 Text(task.title)
                     .font(.system(size: 15, weight: .semibold))
-                Text("\(task.category) · \(task.estimatedSessions == 0 ? "自由专注" : "预计 \(task.estimatedSessions) 段") · 已完成 \(task.completedSessions) 段")
+                Text("\(task.timerActivity.title) · 已专注 \(totalFocus.compactDuration) · 完成 \(task.completedSessions) 段")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -184,12 +274,16 @@ private struct TaskCapsuleRow: View {
                     .background(MossTheme.sage.opacity(0.1), in: Capsule())
             }
             Menu {
-                Button("开始 25 分钟") { store.start(task: task) }
+                Button("按任务设置开始") { store.start(task: task) }
                 Button("先做 5 分钟") { store.start(task: task, mode: .ignition) }
                 Divider()
+                Button("查看专注记录") { isShowingDetail = true }
                 Button("编辑") { isEditing = true }
                 Button("归档") {
                     dataStore.archiveTask(id: task.id, archived: true)
+                }
+                Button("删除任务", role: .destructive) {
+                    isConfirmingDelete = true
                 }
             } label: {
                 Image(systemName: "ellipsis")
@@ -197,7 +291,7 @@ private struct TaskCapsuleRow: View {
             }
             .menuStyle(.borderlessButton)
             Button {
-                store.start(task: task, mode: task.estimatedSessions == 0 ? .free : .standard)
+                store.start(task: task)
             } label: {
                 Image(systemName: "play.fill")
                     .font(.system(size: 11))
@@ -210,18 +304,34 @@ private struct TaskCapsuleRow: View {
         }
         .contentShape(Rectangle())
         .onTapGesture(count: 2) {
-            store.start(task: task)
+            isShowingDetail = true
         }
         .sheet(isPresented: $isEditing) {
             TaskEditorView(task: task)
+        }
+        .sheet(isPresented: $isShowingDetail) {
+            TaskDetailView(task: task)
+        }
+        .confirmationDialog(
+            "删除“\(task.title)”？",
+            isPresented: $isConfirmingDelete,
+            titleVisibility: .visible
+        ) {
+            Button("删除任务", role: .destructive) {
+                dataStore.deleteTask(id: task.id)
+            }
+        } message: {
+            Text("任务入口会删除，但过去的专注记录会永久保留在时间线和统计中。")
         }
     }
 }
 
 struct CategoryGlyph: View {
     let category: String
+    var symbol: String? = nil
 
-    var symbol: String {
+    private var resolvedSymbol: String {
+        if let symbol { return symbol }
         if category.contains("英语") { return "text.bubble.fill" }
         if category.contains("项目") || category.contains("开发") { return "point.3.connected.trianglepath.dotted" }
         if category.contains("阅读") { return "book.closed.fill" }
@@ -230,7 +340,7 @@ struct CategoryGlyph: View {
     }
 
     var body: some View {
-        Image(systemName: symbol)
+        Image(systemName: resolvedSymbol)
             .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(MossTheme.sage)
             .frame(width: 38, height: 38)

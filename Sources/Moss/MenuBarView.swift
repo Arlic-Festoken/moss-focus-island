@@ -6,7 +6,9 @@ struct MenuBarView: View {
     @Environment(\.openWindow) private var openWindow
 
     private var activeTasks: [FocusTask] {
-        dataStore.tasks.filter { !$0.archived }
+        dataStore.tasks.filter {
+            !$0.archived && !(dataStore.project(id: $0.projectID)?.archived ?? false)
+        }
     }
 
     var body: some View {
@@ -43,6 +45,12 @@ struct MenuBarView: View {
         .padding(16)
         .frame(width: 330)
         .background(MossTheme.paper)
+        .onAppear {
+            MainWindowRouter.open = {
+                openWindow(id: "main")
+                NSApplication.shared.activate(ignoringOtherApps: true)
+            }
+        }
         .popover(isPresented: $store.interruptionNeedsReason) {
             InterruptionReasonPicker()
                 .environmentObject(store)
@@ -131,7 +139,7 @@ struct MenuBarView: View {
                     Text(phaseTitle)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(store.phase == .breakTime ? MossTheme.apricot : MossTheme.sage)
-                    Text(store.remaining.clockString)
+                    Text(store.displayTime.clockString)
                         .font(.system(size: 25, weight: .bold, design: .rounded))
                         .monospacedDigit()
                 }
@@ -155,7 +163,7 @@ struct MenuBarView: View {
             }
 
             HStack(spacing: 8) {
-                if store.phase == .focusing {
+                if store.phase == .preparing || store.phase == .focusing {
                     Button("暂停") { store.pause() }
                         .buttonStyle(CapsuleButtonStyle())
                     Button("↗ 被打断") { store.beginOrReturnFromInterruption() }
@@ -181,6 +189,7 @@ struct MenuBarView: View {
     private var phaseTitle: String {
         switch store.phase {
         case .idle: "未开始"
+        case .preparing: "进入状态中"
         case .focusing: "深度专注中"
         case .paused: "暂停中"
         case .breakTime: "休息一下"

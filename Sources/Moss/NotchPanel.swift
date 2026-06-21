@@ -1,6 +1,36 @@
 import AppKit
 import SwiftUI
 
+enum IslandPlacement: String, CaseIterable, Identifiable {
+    case topCenter
+    case topLeading
+    case topTrailing
+    case bottomLeading
+    case bottomTrailing
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .topCenter: "顶部居中"
+        case .topLeading: "左上角"
+        case .topTrailing: "右上角"
+        case .bottomLeading: "左下角"
+        case .bottomTrailing: "右下角"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .topCenter: "rectangle.topthird.inset.filled"
+        case .topLeading: "arrow.up.left"
+        case .topTrailing: "arrow.up.right"
+        case .bottomLeading: "arrow.down.left"
+        case .bottomTrailing: "arrow.down.right"
+        }
+    }
+}
+
 @MainActor
 final class NotchPanelController {
     static let shared = NotchPanelController()
@@ -58,13 +88,41 @@ final class NotchPanelController {
 
     func reposition() {
         guard let panel, let screen = preferredScreen else { return }
-        let hasNotch = screen.safeAreaInsets.top > 0
+        let defaults = UserDefaults.standard
+        let placement = IslandPlacement(
+            rawValue: defaults.string(forKey: "islandPlacement") ?? ""
+        ) ?? .topCenter
+        let hasNotch = screen.safeAreaInsets.top > 0 && placement == .topCenter
         let width: CGFloat = hasNotch ? 520 : 390
         let height: CGFloat = 74
-        let x = screen.frame.midX - width / 2
-        let topOffset: CGFloat = hasNotch ? 1 : 7
-        let y = screen.frame.maxY - height - topOffset
-        panel.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
+        let safeFrame = placement == .topCenter ? screen.frame : screen.visibleFrame
+        let margin: CGFloat = 10
+        var x: CGFloat
+        var y: CGFloat
+
+        switch placement {
+        case .topCenter:
+            x = screen.frame.midX - width / 2
+            y = screen.frame.maxY - height - (hasNotch ? 1 : 7)
+        case .topLeading:
+            x = safeFrame.minX + margin
+            y = safeFrame.maxY - height - margin
+        case .topTrailing:
+            x = safeFrame.maxX - width - margin
+            y = safeFrame.maxY - height - margin
+        case .bottomLeading:
+            x = safeFrame.minX + margin
+            y = safeFrame.minY + margin
+        case .bottomTrailing:
+            x = safeFrame.maxX - width - margin
+            y = safeFrame.minY + margin
+        }
+
+        x += CGFloat(defaults.double(forKey: "islandOffsetX"))
+        y += CGFloat(defaults.double(forKey: "islandOffsetY"))
+        x = min(max(x, screen.frame.minX), screen.frame.maxX - width)
+        y = min(max(y, screen.frame.minY), screen.frame.maxY - height)
+        panel.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true, animate: true)
     }
 
     private var preferredScreen: NSScreen? {
@@ -83,9 +141,11 @@ struct NotchIslandView: View {
     @EnvironmentObject private var store: AppStore
     @State private var hovering = false
     @AppStorage("colorTheme") private var colorTheme = MossColorTheme.sage.rawValue
+    @AppStorage("islandPlacement") private var islandPlacement = IslandPlacement.topCenter.rawValue
 
     private var hasNotch: Bool {
-        NSScreen.main?.safeAreaInsets.top ?? 0 > 0
+        (NSScreen.main?.safeAreaInsets.top ?? 0 > 0)
+            && islandPlacement == IslandPlacement.topCenter.rawValue
     }
 
     var body: some View {
@@ -99,7 +159,11 @@ struct NotchIslandView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
+        .mossTypography()
         .id(colorTheme)
+        .onChange(of: islandPlacement) { _, _ in
+            NotchPanelController.shared.reposition()
+        }
         .animation(.smooth(duration: 0.28), value: hovering)
         .animation(.smooth(duration: 0.28), value: store.phase)
         .onHover { inside in
@@ -138,7 +202,7 @@ struct NotchIslandView: View {
                 HStack(spacing: 8) {
                     ProgressRing(progress: store.progress, lineWidth: 3, tint: phaseTint)
                         .frame(width: 20, height: 20)
-                    Text(store.remaining.clockString)
+                    Text(store.displayTime.clockString)
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .monospacedDigit()
                         .foregroundStyle(.white)
@@ -187,13 +251,13 @@ struct NotchIslandView: View {
 
             Spacer(minLength: 5)
 
-            Text(store.remaining.clockString)
+            Text(store.displayTime.clockString)
                 .font(.system(size: 20, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(.white)
 
             HStack(spacing: 6) {
-                if store.phase == .focusing {
+                if store.phase == .preparing || store.phase == .focusing {
                     islandButton("pause.fill") { store.pause() }
                     islandButton("arrow.up.right") { store.beginOrReturnFromInterruption() }
                     islandButton("stop.fill", tint: MossTheme.brick) { store.requestEnd() }
@@ -251,6 +315,8 @@ struct NotchIslandView: View {
 
     private var phaseTint: Color {
         if store.phase == .breakTime { return MossTheme.apricot }
+        if store.phase == .preparing { return MossTheme.apricot }
+        guard store.timerActivity.countsDown else { return MossTheme.mint }
         if store.remaining <= 60 { return MossTheme.brick }
         if store.remaining <= 300 { return MossTheme.apricot }
         return MossTheme.mint
@@ -258,6 +324,7 @@ struct NotchIslandView: View {
 
     private var phaseTitle: String {
         switch store.phase {
+        case .preparing: "进入状态"
         case .focusing: "深度专注中"
         case .paused: "暂停"
         case .breakTime: "休息"

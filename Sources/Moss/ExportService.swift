@@ -8,24 +8,33 @@ enum ExportFormat {
 
 struct ExportTask: Codable {
     var id: UUID
+    var projectID: UUID?
     var title: String
     var category: String
     var estimatedSessions: Int
     var completedSessions: Int
     var archived: Bool
     var createdAt: Date
+    var timerActivity: String
+    var focusDuration: TimeInterval
+    var warmupDuration: TimeInterval
+    var discardThreshold: TimeInterval
 }
 
 struct ExportSession: Codable {
     var id: UUID
     var taskID: UUID
     var taskTitle: String
+    var projectID: UUID?
+    var projectTitle: String
     var category: String
     var startedAt: Date
     var endedAt: Date?
     var plannedDuration: TimeInterval
     var actualFocusDuration: TimeInterval
     var pausedDuration: TimeInterval
+    var warmupDuration: TimeInterval
+    var timerActivity: String
     var mode: String
     var status: String
     var completionState: String?
@@ -56,12 +65,17 @@ enum ExportService {
                 tasks: tasks.map {
                     ExportTask(
                         id: $0.id,
+                        projectID: $0.projectID,
                         title: $0.title,
                         category: $0.category,
                         estimatedSessions: $0.estimatedSessions,
                         completedSessions: $0.completedSessions,
                         archived: $0.archived,
-                        createdAt: $0.createdAt
+                        createdAt: $0.createdAt,
+                        timerActivity: $0.timerActivityRaw,
+                        focusDuration: $0.focusDuration,
+                        warmupDuration: $0.warmupDuration,
+                        discardThreshold: $0.discardThreshold
                     )
                 },
                 sessions: sessions.map {
@@ -69,12 +83,16 @@ enum ExportService {
                         id: $0.id,
                         taskID: $0.taskID,
                         taskTitle: $0.taskTitle,
+                        projectID: $0.projectID,
+                        projectTitle: $0.projectTitle,
                         category: $0.category,
                         startedAt: $0.startedAt,
                         endedAt: $0.endedAt,
                         plannedDuration: $0.plannedDuration,
                         actualFocusDuration: $0.actualFocusDuration,
                         pausedDuration: $0.pausedDuration,
+                        warmupDuration: $0.warmupDuration,
+                        timerActivity: $0.timerActivityRaw,
                         mode: $0.modeRaw,
                         status: $0.statusRaw,
                         completionState: $0.completionStateRaw,

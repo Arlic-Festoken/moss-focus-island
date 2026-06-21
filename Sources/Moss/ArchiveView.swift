@@ -7,6 +7,10 @@ struct ArchiveView: View {
         dataStore.tasks.filter(\.archived).sorted { $0.createdAt > $1.createdAt }
     }
 
+    private var archivedProjects: [FocusProject] {
+        dataStore.projects.filter(\.archived).sorted { $0.createdAt > $1.createdAt }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
@@ -31,7 +35,7 @@ struct ArchiveView: View {
                 }
 
                 MossCard {
-                    if archived.isEmpty {
+                    if archived.isEmpty && archivedProjects.isEmpty {
                         ContentUnavailableView(
                             "归档还是空的",
                             systemImage: "archivebox",
@@ -40,12 +44,33 @@ struct ArchiveView: View {
                         .frame(minHeight: 260)
                     } else {
                         VStack(spacing: 0) {
+                            ForEach(archivedProjects) { project in
+                                HStack {
+                                    Image(systemName: project.symbol)
+                                        .foregroundStyle(MossTheme.sage)
+                                        .frame(width: 38, height: 38)
+                                        .background(MossTheme.sage.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(project.title).font(.headline)
+                                        Text("项目 · \(dataStore.totalFocus(forProjectID: project.id).compactDuration)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Button("恢复项目") {
+                                        dataStore.archiveProject(id: project.id, archived: false)
+                                    }
+                                    .buttonStyle(CapsuleButtonStyle())
+                                }
+                                .padding(.vertical, 11)
+                                Divider()
+                            }
                             ForEach(archived) { task in
                                 HStack {
                                     CategoryGlyph(category: task.category)
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text(task.title).font(.headline)
-                                        Text("\(task.category) · 完成 \(task.completedSessions) 段")
+                                        Text("\(task.category) · \(dataStore.totalFocus(for: task.id).compactDuration) · 完成 \(task.completedSessions) 段")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }

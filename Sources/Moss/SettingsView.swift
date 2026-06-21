@@ -8,6 +8,11 @@ struct SettingsView: View {
     @AppStorage("showNotchIsland") private var showNotchIsland = true
     @AppStorage("subtleSound") private var subtleSound = true
     @AppStorage("colorTheme") private var colorTheme = MossColorTheme.sage.rawValue
+    @AppStorage("fontTheme") private var fontTheme = MossFontTheme.rounded.rawValue
+    @AppStorage("fontSize") private var fontSize = MossFontSize.standard.rawValue
+    @AppStorage("islandPlacement") private var islandPlacement = IslandPlacement.topCenter.rawValue
+    @AppStorage("islandOffsetX") private var islandOffsetX = 0.0
+    @AppStorage("islandOffsetY") private var islandOffsetY = 0.0
 
     var body: some View {
         ScrollView {
@@ -18,6 +23,22 @@ struct SettingsView: View {
                     Text("主题会同步改变主色、完成色、休息色与纸张背景。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+                Section("字体") {
+                    FontThemePicker(selection: $fontTheme)
+                    Picker("界面字号", selection: $fontSize) {
+                        ForEach(MossFontSize.allCases) { size in
+                            Text(size.title).tag(size.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    Text("Moss 专注岛 · \(MossFontTheme(rawValue: fontTheme)?.title ?? "圆体")")
+                        .font((MossFontTheme(rawValue: fontTheme) ?? .rounded).font(
+                            size: 17 * (MossFontSize(rawValue: fontSize) ?? .standard).scale,
+                            weight: .semibold
+                        ))
+                        .foregroundStyle(MossTheme.sage)
+                        .padding(.vertical, 4)
                 }
                 Section("计时") {
                     Stepper("标准专注：\(focusMinutes) 分钟", value: $focusMinutes, in: 5...90, step: 5)
@@ -31,6 +52,38 @@ struct SettingsView: View {
                                 : NotchPanelController.shared.hide()
                         }
                     Toggle("完成时播放轻提示音", isOn: $subtleSound)
+                    IslandPlacementPicker(selection: $islandPlacement)
+                    VStack(alignment: .leading, spacing: 9) {
+                        HStack {
+                            Text("水平微调")
+                            Slider(value: $islandOffsetX, in: -220...220, step: 2)
+                            Text("\(Int(islandOffsetX))")
+                                .font(.caption.monospacedDigit())
+                                .frame(width: 38, alignment: .trailing)
+                        }
+                        HStack {
+                            Text("垂直微调")
+                            Slider(value: $islandOffsetY, in: -140...140, step: 2)
+                            Text("\(Int(islandOffsetY))")
+                                .font(.caption.monospacedDigit())
+                                .frame(width: 38, alignment: .trailing)
+                        }
+                        HStack {
+                            Text("可以在预设位置基础上继续微调。")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("重置位置") {
+                                islandPlacement = IslandPlacement.topCenter.rawValue
+                                islandOffsetX = 0
+                                islandOffsetY = 0
+                                NotchPanelController.shared.reposition()
+                            }
+                        }
+                    }
+                    .onChange(of: islandPlacement) { _, _ in NotchPanelController.shared.reposition() }
+                    .onChange(of: islandOffsetX) { _, _ in NotchPanelController.shared.reposition() }
+                    .onChange(of: islandOffsetY) { _, _ in NotchPanelController.shared.reposition() }
                 }
                 Section("隐私与数据") {
                     LabeledContent("网络请求", value: "0")
@@ -54,6 +107,88 @@ struct SettingsView: View {
             .frame(maxWidth: 720)
         }
         .background(MossTheme.paper)
+    }
+}
+
+private struct IslandPlacementPicker: View {
+    @Binding var selection: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text("显示位置").font(.caption.weight(.semibold))
+            HStack(spacing: 8) {
+                ForEach(IslandPlacement.allCases) { placement in
+                    Button {
+                        selection = placement.rawValue
+                    } label: {
+                        VStack(spacing: 5) {
+                            Image(systemName: placement.icon)
+                                .font(.system(size: 15, weight: .semibold))
+                            Text(placement.title)
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(selection == placement.rawValue ? .white : MossTheme.sage)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(
+                            selection == placement.rawValue
+                                ? MossTheme.sage
+                                : MossTheme.sage.opacity(0.08),
+                            in: RoundedRectangle(cornerRadius: 11)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
+private struct FontThemePicker: View {
+    @Binding var selection: String
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 125, maximum: 170), spacing: 9)
+    ]
+
+    var body: some View {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 9) {
+            ForEach(MossFontTheme.allCases) { theme in
+                Button {
+                    selection = theme.rawValue
+                } label: {
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack {
+                            Text("Aa 字")
+                                .font(theme.font(size: 18, weight: .semibold))
+                            Spacer()
+                            if selection == theme.rawValue {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(MossTheme.sage)
+                            }
+                        }
+                        Text(theme.title)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(11)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        selection == theme.rawValue
+                            ? MossTheme.sage.opacity(0.10)
+                            : Color.primary.opacity(0.025),
+                        in: RoundedRectangle(cornerRadius: 13)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 13)
+                            .stroke(selection == theme.rawValue
+                                    ? MossTheme.sage.opacity(0.5)
+                                    : Color.primary.opacity(0.05))
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 }
 
