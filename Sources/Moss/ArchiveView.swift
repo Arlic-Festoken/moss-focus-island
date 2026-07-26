@@ -86,7 +86,7 @@ struct ArchiveView: View {
                                     }
                                     Spacer()
                                     Button("恢复") {
-                                        dataStore.archiveTask(id: task.id, archived: false)
+                                        dataStore.restoreTask(id: task.id)
                                     }
                                     .buttonStyle(CapsuleButtonStyle())
                                 }

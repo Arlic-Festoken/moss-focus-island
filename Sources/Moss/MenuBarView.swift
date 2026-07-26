@@ -15,6 +15,13 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            if let notice = store.transientNotice {
+                Label(notice.message, systemImage: "leaf.fill")
+                    .font(MossTypography.font(11, weight: .semibold))
+                    .foregroundStyle(MossTheme.sage)
+                    .padding(.bottom, 10)
+            }
+
             if store.phase == .idle {
                 idleContent
             } else {
@@ -183,7 +190,7 @@ struct MenuBarView: View {
                     Button("结束休息") { store.skipBreak() }
                         .buttonStyle(CapsuleButtonStyle(tint: MossTheme.apricot, prominent: true, prominentForeground: .black))
                 } else {
-                    Button("完成记录") { store.isReviewPresented = true }
+                    Button("完成记录") { store.presentReview() }
                         .buttonStyle(CapsuleButtonStyle(prominent: true))
                 }
             }

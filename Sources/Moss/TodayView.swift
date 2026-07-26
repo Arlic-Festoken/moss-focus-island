@@ -3,6 +3,7 @@ import SwiftUI
 struct TodayView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var dataStore: DataStore
+    var onOpenTimeline: () -> Void = {}
     private var activeTasks: [FocusTask] {
         dataStore.startableTasks
     }
@@ -83,7 +84,7 @@ struct TodayView: View {
                     }
                 } else {
                     VStack(alignment: .trailing, spacing: 10) {
-                        if let next = activeTasks.first {
+                        if let next = dataStore.preferredStartTask {
                             Text("下一任务")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
@@ -174,13 +175,19 @@ struct TodayView: View {
     private var timelineAndFeedback: some View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .top, spacing: 18) {
-                TodayTimelineCard(sessions: dataStore.sessions)
+                TodayTimelineCard(
+                    sessions: dataStore.sessions,
+                    onOpenTimeline: onOpenTimeline
+                )
                     .frame(minWidth: 400, maxWidth: .infinity)
                 DailyFeedbackCard(metrics: metrics)
                     .frame(width: 360)
             }
             VStack(alignment: .leading, spacing: 18) {
-                TodayTimelineCard(sessions: dataStore.sessions)
+                TodayTimelineCard(
+                    sessions: dataStore.sessions,
+                    onOpenTimeline: onOpenTimeline
+                )
                 DailyFeedbackCard(metrics: metrics)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -261,7 +268,7 @@ private struct TodayFocusControls: View {
             .buttonStyle(CapsuleButtonStyle(tint: MossTheme.apricot, prominent: true))
         case .awaitingReview:
             Button {
-                store.isReviewPresented = true
+                store.presentReview()
             } label: {
                 Label("完成记录", systemImage: "checkmark")
             }
@@ -273,6 +280,7 @@ private struct TodayFocusControls: View {
 }
 
 private struct ProjectTaskSection: View {
+    @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var dataStore: DataStore
     let project: FocusProject
     let tasks: [FocusTask]
@@ -284,6 +292,14 @@ private struct ProjectTaskSection: View {
         isSynthetic
             ? tasks.reduce(0) { $0 + dataStore.totalFocus(for: $1.id) }
             : dataStore.totalFocus(forProjectID: project.id)
+    }
+
+    private var containsCurrentTask: Bool {
+        guard store.phase != .idle else { return false }
+        if isSynthetic {
+            return tasks.contains(where: { $0.id == store.currentTaskID })
+        }
+        return store.currentProjectID == project.id
     }
 
     var body: some View {
@@ -308,8 +324,14 @@ private struct ProjectTaskSection: View {
                 if !isSynthetic {
                     Menu {
                         Button("编辑项目") { isEditingProject = true }
+                            .disabled(containsCurrentTask)
                         Button("归档项目") {
                             dataStore.archiveProject(id: project.id, archived: true)
+                        }
+                        .disabled(containsCurrentTask)
+                        if containsCurrentTask {
+                            Divider()
+                            Text("请先结束该项目中的当前专注")
                         }
                     } label: {
                         Image(systemName: "ellipsis")
@@ -353,6 +375,10 @@ private struct TaskCapsuleRow: View {
         store.phase == .idle
     }
 
+    private var isCurrentTask: Bool {
+        store.phase != .idle && store.currentTaskID == task.id
+    }
+
     var body: some View {
         HStack(spacing: 13) {
             CategoryGlyph(
@@ -385,11 +411,18 @@ private struct TaskCapsuleRow: View {
                 Divider()
                 Button("查看专注记录") { isShowingDetail = true }
                 Button("编辑") { isEditing = true }
+                    .disabled(isCurrentTask)
                 Button("归档") {
                     dataStore.archiveTask(id: task.id, archived: true)
                 }
+                .disabled(isCurrentTask)
                 Button("删除任务", role: .destructive) {
                     isConfirmingDelete = true
+                }
+                .disabled(isCurrentTask)
+                if isCurrentTask {
+                    Divider()
+                    Text("请先结束当前专注")
                 }
             } label: {
                 Image(systemName: "ellipsis")
@@ -498,6 +531,7 @@ private struct FocusWeatherCard: View {
 
 private struct TodayTimelineCard: View {
     let sessions: [FocusSession]
+    let onOpenTimeline: () -> Void
 
     private var today: [FocusSession] {
         sessions
@@ -512,9 +546,8 @@ private struct TodayTimelineCard: View {
                     Text("专注轨迹")
                         .font(.title3.bold())
                     Spacer()
-                    NavigationLink("查看全部") {
-                        TimelinePage()
-                    }
+                    Button("查看全部", action: onOpenTimeline)
+                        .buttonStyle(.plain)
                     .font(.caption)
                 }
                 if today.isEmpty {

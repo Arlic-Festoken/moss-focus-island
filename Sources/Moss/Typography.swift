@@ -95,6 +95,16 @@ enum MossTypography {
     static func font(_ baseSize: CGFloat, weight: Font.Weight = .regular) -> Font {
         theme.font(size: baseSize * size.scale, weight: weight)
     }
+
+    static func editorial(_ baseSize: CGFloat, weight: Font.Weight = .regular) -> Font {
+        let scaledSize = baseSize * size.scale
+        switch theme {
+        case .songti, .kaiti, .serif:
+            return theme.font(size: scaledSize, weight: weight)
+        case .system, .rounded, .pingFang, .avenir, .monospaced:
+            return .system(size: scaledSize, weight: weight, design: .serif)
+        }
+    }
 }
 
 private struct MossTypographyModifier: ViewModifier {

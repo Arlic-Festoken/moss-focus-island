@@ -54,8 +54,8 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Section("专注岛") {
-                    Toggle("显示顶部专注岛", isOn: $showNotchIsland)
+                Section("悬浮专注岛") {
+                    Toggle("显示悬浮专注岛", isOn: $showNotchIsland)
                         .onChange(of: showNotchIsland) { _, newValue in
                             newValue
                                 ? NotchPanelController.shared.show(store: store)
@@ -87,13 +87,22 @@ struct SettingsView: View {
                                 islandPlacement = IslandPlacement.topCenter.rawValue
                                 islandOffsetX = 0
                                 islandOffsetY = 0
-                                NotchPanelController.shared.reposition()
+                                NotchPanelController.shared.resetPosition()
                             }
                         }
                     }
-                    .onChange(of: islandPlacement) { _, _ in NotchPanelController.shared.reposition() }
-                    .onChange(of: islandOffsetX) { _, _ in NotchPanelController.shared.reposition() }
-                    .onChange(of: islandOffsetY) { _, _ in NotchPanelController.shared.reposition() }
+                    .onChange(of: islandPlacement) { _, _ in
+                        islandOffsetX = 0
+                        islandOffsetY = 0
+                        UserDefaults.standard.removeObject(forKey: "islandDisplayID")
+                        NotchPanelController.shared.resetPosition()
+                    }
+                    .onChange(of: islandOffsetX) { _, _ in
+                        NotchPanelController.shared.reposition(animated: false)
+                    }
+                    .onChange(of: islandOffsetY) { _, _ in
+                        NotchPanelController.shared.reposition(animated: false)
+                    }
                 }
                 Section("隐私与数据") {
                     LabeledContent("网络请求", value: "0")

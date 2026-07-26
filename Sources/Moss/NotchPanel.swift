@@ -32,11 +32,21 @@ enum IslandPlacement: String, CaseIterable, Identifiable {
 }
 
 @MainActor
-final class NotchPanelController {
+final class NotchPanelController: ObservableObject {
     static let shared = NotchPanelController()
+
+    @Published private(set) var hasNotch = false
 
     private var panel: NSPanel?
     private var screenObserver: NSObjectProtocol?
+    private var presentation: IslandPanelPresentation = .idle
+    private var currentScreenID: String?
+    private var dragState: DragState?
+
+    private struct DragState {
+        var mouseOrigin: CGPoint
+        var panelOrigin: CGPoint
+    }
 
     private init() {}
 
@@ -68,7 +78,7 @@ final class NotchPanelController {
             self.panel = panel
         }
 
-        reposition()
+        reposition(animated: false)
         panel?.orderFrontRegardless()
 
         if screenObserver == nil {
@@ -77,7 +87,7 @@ final class NotchPanelController {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                Task { @MainActor in self?.reposition() }
+                Task { @MainActor in self?.reposition(animated: false) }
             }
         }
     }
@@ -86,49 +96,141 @@ final class NotchPanelController {
         panel?.orderOut(nil)
     }
 
-    func reposition() {
+    func setPresentation(_ newPresentation: IslandPanelPresentation, animated: Bool = true) {
+        guard presentation != newPresentation else { return }
+        presentation = newPresentation
+        guard dragState == nil else { return }
+        reposition(animated: animated)
+    }
+
+    func reposition(animated: Bool = true) {
         guard let panel, let screen = preferredScreen else { return }
         let defaults = UserDefaults.standard
         let placement = IslandPlacement(
             rawValue: defaults.string(forKey: "islandPlacement") ?? ""
         ) ?? .topCenter
-        let hasNotch = screen.safeAreaInsets.top > 0 && placement == .topCenter
-        let width: CGFloat = hasNotch ? 520 : 390
-        let height: CGFloat = 74
-        let safeFrame = placement == .topCenter ? screen.frame : screen.visibleFrame
-        let margin: CGFloat = 10
-        var x: CGFloat
-        var y: CGFloat
+        let geometry = screen.geometry
+        let panelHasNotch = geometry.hasNotch && placement == .topCenter
+        let size = IslandPanelGeometry.size(
+            for: presentation,
+            hasNotch: panelHasNotch,
+            placement: placement
+        )
+        let offset = CGSize(
+            width: defaults.double(forKey: "islandOffsetX"),
+            height: defaults.double(forKey: "islandOffsetY")
+        )
+        let target = IslandPanelGeometry.frame(
+            placement: placement,
+            screen: geometry,
+            size: size,
+            offset: offset
+        )
+        currentScreenID = screen.displayID
+        defaults.set(currentScreenID, forKey: "islandDisplayID")
+        hasNotch = panelHasNotch
+        let shouldAnimate = animated
+            && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        panel.setFrame(target, display: true, animate: shouldAnimate)
+    }
 
-        switch placement {
-        case .topCenter:
-            x = screen.frame.midX - width / 2
-            y = screen.frame.maxY - height - (hasNotch ? 1 : 7)
-        case .topLeading:
-            x = safeFrame.minX + margin
-            y = safeFrame.maxY - height - margin
-        case .topTrailing:
-            x = safeFrame.maxX - width - margin
-            y = safeFrame.maxY - height - margin
-        case .bottomLeading:
-            x = safeFrame.minX + margin
-            y = safeFrame.minY + margin
-        case .bottomTrailing:
-            x = safeFrame.maxX - width - margin
-            y = safeFrame.minY + margin
-        }
+    func beginDrag(at mouseLocation: CGPoint = NSEvent.mouseLocation) {
+        guard let panel else { return }
+        dragState = DragState(
+            mouseOrigin: mouseLocation,
+            panelOrigin: panel.frame.origin
+        )
+    }
 
-        x += CGFloat(defaults.double(forKey: "islandOffsetX"))
-        y += CGFloat(defaults.double(forKey: "islandOffsetY"))
-        x = min(max(x, screen.frame.minX), screen.frame.maxX - width)
-        y = min(max(y, screen.frame.minY), screen.frame.maxY - height)
-        panel.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true, animate: true)
+    func updateDrag(at mouseLocation: CGPoint = NSEvent.mouseLocation) {
+        guard let panel, let dragState else { return }
+        let delta = CGPoint(
+            x: mouseLocation.x - dragState.mouseOrigin.x,
+            y: mouseLocation.y - dragState.mouseOrigin.y
+        )
+        let proposed = CGRect(
+            origin: CGPoint(
+                x: dragState.panelOrigin.x + delta.x,
+                y: dragState.panelOrigin.y + delta.y
+            ),
+            size: panel.frame.size
+        )
+        let targetScreen = screen(containing: mouseLocation)
+            ?? screen(containing: proposed.center)
+            ?? preferredScreen
+        guard let targetScreen else { return }
+        let placement = currentPlacement
+        let clamped = IslandPanelGeometry.clamped(
+            proposed,
+            to: IslandPanelGeometry.movementBounds(
+                for: placement,
+                screen: targetScreen.geometry
+            )
+        )
+        currentScreenID = targetScreen.displayID
+        hasNotch = targetScreen.geometry.hasNotch && placement == .topCenter
+        panel.setFrame(clamped, display: true, animate: false)
+    }
+
+    func endDrag() {
+        defer { dragState = nil }
+        guard let panel else { return }
+        let screen = screen(containing: panel.frame.center)
+            ?? screen(withID: currentScreenID)
+            ?? preferredScreen
+        guard let screen else { return }
+        let placement = currentPlacement
+        let clamped = IslandPanelGeometry.clamped(
+            panel.frame,
+            to: IslandPanelGeometry.movementBounds(
+                for: placement,
+                screen: screen.geometry
+            )
+        )
+        panel.setFrame(clamped, display: true, animate: false)
+        let offset = IslandPanelGeometry.offset(
+            for: clamped,
+            placement: placement,
+            screen: screen.geometry
+        )
+        let defaults = UserDefaults.standard
+        defaults.set(Double(offset.width), forKey: "islandOffsetX")
+        defaults.set(Double(offset.height), forKey: "islandOffsetY")
+        defaults.set(screen.displayID, forKey: "islandDisplayID")
+        currentScreenID = screen.displayID
+    }
+
+    func resetPosition() {
+        let defaults = UserDefaults.standard
+        defaults.set(0.0, forKey: "islandOffsetX")
+        defaults.set(0.0, forKey: "islandOffsetY")
+        defaults.removeObject(forKey: "islandDisplayID")
+        currentScreenID = nil
+        reposition(animated: true)
+    }
+
+    private var currentPlacement: IslandPlacement {
+        IslandPlacement(
+            rawValue: UserDefaults.standard.string(forKey: "islandPlacement") ?? ""
+        ) ?? .topCenter
     }
 
     private var preferredScreen: NSScreen? {
-        NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
+        screen(withID: currentScreenID)
+            ?? screen(withID: UserDefaults.standard.string(forKey: "islandDisplayID"))
+            ?? panel.flatMap { screen(containing: $0.frame.center) }
+            ?? screen(containing: NSEvent.mouseLocation)
             ?? NSScreen.main
             ?? NSScreen.screens.first
+    }
+
+    private func screen(containing point: CGPoint) -> NSScreen? {
+        NSScreen.screens.first(where: { $0.frame.contains(point) })
+    }
+
+    private func screen(withID id: String?) -> NSScreen? {
+        guard let id else { return nil }
+        return NSScreen.screens.first(where: { $0.displayID == id })
     }
 }
 
@@ -137,18 +239,38 @@ private final class MossPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+private extension NSScreen {
+    var displayID: String? {
+        (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?
+            .stringValue
+    }
+
+    var geometry: IslandScreenGeometry {
+        IslandScreenGeometry(
+            frame: frame,
+            visibleFrame: visibleFrame,
+            safeAreaTop: safeAreaInsets.top,
+            displayID: displayID
+        )
+    }
+}
+
 struct NotchIslandView: View {
     @EnvironmentObject private var store: AppStore
+    @ObservedObject private var panelController = NotchPanelController.shared
     @State private var hovering = false
-    @State private var dragStartOffset: CGSize?
+    @State private var isDragging = false
     @AppStorage("colorTheme") private var colorTheme = MossColorTheme.sage.rawValue
     @AppStorage("islandPlacement") private var islandPlacement = IslandPlacement.topCenter.rawValue
-    @AppStorage("islandOffsetX") private var islandOffsetX = 0.0
-    @AppStorage("islandOffsetY") private var islandOffsetY = 0.0
 
     private var hasNotch: Bool {
-        (NSScreen.main?.safeAreaInsets.top ?? 0 > 0)
-            && islandPlacement == IslandPlacement.topCenter.rawValue
+        panelController.hasNotch
+    }
+
+    private var presentation: IslandPanelPresentation {
+        if store.phase == .idle { return .idle }
+        if hovering || store.isIslandExpanded { return .expanded }
+        return .compact
     }
 
     var body: some View {
@@ -165,15 +287,17 @@ struct NotchIslandView: View {
         .mossTypography()
         .tint(MossColorTheme(rawValue: colorTheme)?.accent ?? MossTheme.sage)
         .onChange(of: islandPlacement) { _, _ in
-            NotchPanelController.shared.reposition()
+            panelController.reposition(animated: true)
         }
-        .onChange(of: islandOffsetX) { _, _ in
-            NotchPanelController.shared.reposition()
+        .onAppear {
+            panelController.setPresentation(presentation, animated: false)
         }
-        .onChange(of: islandOffsetY) { _, _ in
-            NotchPanelController.shared.reposition()
+        .onChange(of: presentation) { _, newValue in
+            panelController.setPresentation(newValue, animated: !isDragging)
         }
-        .simultaneousGesture(islandDragGesture)
+        .overlay(alignment: .top) {
+            dragHandle
+        }
         .animation(.smooth(duration: 0.28), value: hovering)
         .animation(.smooth(duration: 0.28), value: store.phase)
         .onHover { inside in
@@ -188,27 +312,27 @@ struct NotchIslandView: View {
 
     private var islandDragGesture: some Gesture {
         DragGesture(minimumDistance: 4)
-            .onChanged(handleIslandDrag)
+            .onChanged { _ in
+                if !isDragging {
+                    isDragging = true
+                    panelController.beginDrag()
+                }
+                panelController.updateDrag()
+            }
             .onEnded { _ in
-                dragStartOffset = nil
-                NotchPanelController.shared.reposition()
+                panelController.endDrag()
+                isDragging = false
             }
     }
 
-    private func handleIslandDrag(_ value: DragGesture.Value) {
-        let base = dragStartOffset ?? CGSize(
-            width: CGFloat(islandOffsetX),
-            height: CGFloat(islandOffsetY)
-        )
-        if dragStartOffset == nil {
-            dragStartOffset = base
-        }
-        islandOffsetX = clampedOffset(Double(base.width + value.translation.width), limit: 420)
-        islandOffsetY = clampedOffset(Double(base.height - value.translation.height), limit: 260)
-    }
-
-    private func clampedOffset(_ value: Double, limit: Double) -> Double {
-        min(max(value, -limit), limit)
+    private var dragHandle: some View {
+        Capsule()
+            .fill(.white.opacity(0.36))
+            .frame(width: 30, height: 3)
+            .frame(width: 70, height: 12)
+            .contentShape(Rectangle())
+            .gesture(islandDragGesture)
+            .help("拖动专注岛")
     }
 
     private var idleIsland: some View {
@@ -219,7 +343,7 @@ struct NotchIslandView: View {
                 Image(systemName: "leaf.fill")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(MossTheme.mint)
-                Text("今日 \(store.todayCompletedCount) 段")
+                Text(store.transientNotice?.message ?? "今日 \(store.todayCompletedCount) 段")
                     .font(MossTypography.font(11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.8))
             }
@@ -254,7 +378,10 @@ struct NotchIslandView: View {
 
                 islandLobe {
                     HStack(spacing: 7) {
-                        Text(store.phase == .breakTime ? BreakPrompt.current : store.currentTaskTitle)
+                        Text(
+                            store.transientNotice?.message
+                                ?? (store.phase == .breakTime ? BreakPrompt.current : store.currentTaskTitle)
+                        )
                             .lineLimit(1)
                         if store.phase != .breakTime {
                             Text("· \(store.todayCompletedCount)")
@@ -286,7 +413,10 @@ struct NotchIslandView: View {
                 Text(phaseTitle)
                     .font(MossTypography.font(10, weight: .semibold))
                     .foregroundStyle(phaseTint)
-                Text(store.phase == .breakTime ? BreakPrompt.current : store.currentTaskTitle)
+                Text(
+                    store.transientNotice?.message
+                        ?? (store.phase == .breakTime ? BreakPrompt.current : store.currentTaskTitle)
+                )
                     .font(MossTypography.font(12, weight: .semibold))
                     .lineLimit(1)
                     .foregroundStyle(.white)
@@ -312,7 +442,7 @@ struct NotchIslandView: View {
                 } else if store.phase == .breakTime {
                     islandButton("forward.end.fill", tint: MossTheme.apricot) { store.skipBreak() }
                 } else {
-                    islandButton("checkmark", tint: MossTheme.mint) { store.isReviewPresented = true }
+                    islandButton("checkmark", tint: MossTheme.mint) { store.presentReview() }
                 }
                 islandButton("chevron.up") { store.isIslandExpanded = false }
             }

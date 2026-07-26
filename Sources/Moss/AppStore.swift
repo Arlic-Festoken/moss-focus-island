@@ -16,6 +16,11 @@ enum FocusPhase: String, Codable {
     case awaitingReview
 }
 
+struct TransientNotice: Identifiable, Equatable {
+    let id = UUID()
+    let message: String
+}
+
 struct PersistedRun: Codable {
     var phase: FocusPhase
     var sessionID: UUID
@@ -69,7 +74,7 @@ final class AppStore: ObservableObject {
     @Published var isReviewPresented = false
     @Published var interruptionNeedsReason = false
     @Published var wakeGapMessage: String?
-    @Published var transientMessage: String?
+    @Published private(set) var transientNotice: TransientNotice?
     @Published private(set) var mainWindowRequested: Bool
 
     private(set) var dataStore: DataStore?
@@ -91,6 +96,14 @@ final class AppStore: ObservableObject {
     }
 
     var isPreparing: Bool { phase == .preparing }
+
+    var currentTaskID: UUID? {
+        run?.taskID
+    }
+
+    var currentProjectID: UUID? {
+        run?.projectID
+    }
 
     var displayTime: TimeInterval {
         if phase == .preparing { return warmupRemaining }
@@ -229,14 +242,7 @@ final class AppStore: ObservableObject {
             return
         }
 
-        phase = .awaitingReview
-        run?.phase = .awaitingReview
-        run?.focusEndedAt = .now
-        updateClock()
-        persistRun()
-        stopTimer()
-        openMainWindow()
-        isReviewPresented = true
+        enterAwaitingReview(automatically: false)
     }
 
     func cancelStart() {
@@ -371,13 +377,44 @@ final class AppStore: ObservableObject {
         }
     }
 
+    func presentReview() {
+        guard phase == .awaitingReview else { return }
+        openMainWindow()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+            guard let self, self.phase == .awaitingReview else { return }
+            self.isReviewPresented = true
+        }
+    }
+
     func showTransient(_ message: String) {
-        transientMessage = message
-        Task {
+        let notice = TransientNotice(message: message)
+        transientNotice = notice
+        Task { [weak self] in
             try? await Task.sleep(for: .seconds(2.4))
-            if transientMessage == message {
-                transientMessage = nil
+            guard let self else { return }
+            if self.transientNotice?.id == notice.id {
+                self.transientNotice = nil
             }
+        }
+    }
+
+    private func enterAwaitingReview(automatically: Bool) {
+        guard phase == .focusing || phase == .paused else { return }
+        phase = .awaitingReview
+        run?.phase = .awaitingReview
+        run?.focusEndedAt = .now
+        updateClock()
+        persistRun()
+        stopTimer()
+        isIslandExpanded = true
+
+        if automatically {
+            showTransient("本段已完成，点击后补充记录")
+            if defaults.object(forKey: "subtleSound") as? Bool ?? true {
+                NSSound(named: "Glass")?.play()
+            }
+        } else {
+            presentReview()
         }
     }
 
@@ -433,16 +470,7 @@ final class AppStore: ObservableObject {
         if current.timerActivity.countsDown {
             remaining = max(0, current.plannedDuration - elapsed)
             if remaining <= 0 && phase == .focusing {
-                phase = .awaitingReview
-                run?.phase = .awaitingReview
-                run?.focusEndedAt = .now
-                persistRun()
-                stopTimer()
-                openMainWindow()
-                isReviewPresented = true
-                if defaults.object(forKey: "subtleSound") as? Bool ?? true {
-                    NSSound(named: "Glass")?.play()
-                }
+                enterAwaitingReview(automatically: true)
             }
         } else {
             remaining = current.plannedDuration > 0
@@ -495,7 +523,6 @@ final class AppStore: ObservableObject {
         if let data = defaults.data(forKey: runKey),
            let restored = try? JSONDecoder().decode(PersistedRun.self, from: data) {
             apply(restored)
-            isReviewPresented = restored.phase == .awaitingReview
             return
         }
 
@@ -531,7 +558,6 @@ final class AppStore: ObservableObject {
             breakDuration: legacy.breakDuration
         )
         apply(restored)
-        isReviewPresented = restored.phase == .awaitingReview
         persistRun()
         defaults.removeObject(forKey: legacyKey)
     }
@@ -554,6 +580,7 @@ final class AppStore: ObservableObject {
         timerActivity = .pomodoro
         activeInterruptionID = nil
         interruptionNeedsReason = false
+        isReviewPresented = false
     }
 
     private func updateSessionStatus(_ status: SessionStatus) {

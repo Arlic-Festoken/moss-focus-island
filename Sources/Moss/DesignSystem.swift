@@ -140,6 +140,9 @@ enum MossTheme {
     static var mint: Color { current.completion }
     static var apricot: Color { current.warm }
     static let brick = Color(red: 0.68, green: 0.36, blue: 0.31)
+    static var hairline: Color { Color.primary.opacity(0.09) }
+    static var quietFill: Color { Color.primary.opacity(0.035) }
+    static var elevatedShadow: Color { Color.black.opacity(0.08) }
     static var paper: Color { Color(nsColor: NSColor(name: nil) { appearance in
         let theme = current
         return appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
@@ -155,8 +158,15 @@ enum MossTheme {
     static let textSecondary = Color.secondary.opacity(0.82)
 }
 
+enum MossSurfaceKind {
+    case standard
+    case quiet
+    case hero
+}
+
 struct MossCard<Content: View>: View {
     var padding: CGFloat = 20
+    var kind: MossSurfaceKind = .standard
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -164,13 +174,126 @@ struct MossCard<Content: View>: View {
             .padding(padding)
             .background(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(MossTheme.card.opacity(0.96))
-                    .shadow(color: .black.opacity(0.045), radius: 14, y: 7)
+                    .fill(fillStyle)
+                    .shadow(
+                        color: kind == .hero ? MossTheme.elevatedShadow : .clear,
+                        radius: kind == .hero ? 22 : 0,
+                        y: kind == .hero ? 12 : 0
+                    )
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(.white.opacity(0.10), lineWidth: 1)
+                    .stroke(borderColor, lineWidth: 1)
             )
+    }
+
+    private var fillStyle: AnyShapeStyle {
+        switch kind {
+        case .standard:
+            AnyShapeStyle(MossTheme.card.opacity(0.90))
+        case .quiet:
+            AnyShapeStyle(MossTheme.quietFill)
+        case .hero:
+            AnyShapeStyle(
+                LinearGradient(
+                    colors: [
+                        MossTheme.card,
+                        MossTheme.sage.opacity(0.10),
+                        MossTheme.card.opacity(0.94)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+        }
+    }
+
+    private var borderColor: Color {
+        switch kind {
+        case .standard: MossTheme.hairline
+        case .quiet: MossTheme.hairline.opacity(0.65)
+        case .hero: MossTheme.sage.opacity(0.18)
+        }
+    }
+}
+
+struct MossPageHeader<Trailing: View>: View {
+    let eyebrow: String
+    let title: String
+    let subtitle: String
+    @ViewBuilder let trailing: Trailing
+
+    init(
+        eyebrow: String,
+        title: String,
+        subtitle: String,
+        @ViewBuilder trailing: () -> Trailing
+    ) {
+        self.eyebrow = eyebrow
+        self.title = title
+        self.subtitle = subtitle
+        self.trailing = trailing()
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 22) {
+            VStack(alignment: .leading, spacing: 7) {
+                if !eyebrow.isEmpty {
+                    Text(eyebrow.uppercased())
+                        .font(MossTypography.font(10, weight: .bold))
+                        .tracking(1.3)
+                        .foregroundStyle(MossTheme.sage)
+                }
+                Text(title)
+                    .font(MossTypography.editorial(31, weight: .semibold))
+                    .tracking(-0.5)
+                Text(subtitle)
+                    .font(MossTypography.font(13))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 20)
+            trailing
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+extension MossPageHeader where Trailing == EmptyView {
+    init(eyebrow: String, title: String, subtitle: String) {
+        self.init(eyebrow: eyebrow, title: title, subtitle: subtitle) {
+            EmptyView()
+        }
+    }
+}
+
+struct MossMetric: View {
+    let value: String
+    let label: String
+    var symbol: String?
+    var tint: Color = MossTheme.sage
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if let symbol {
+                Image(systemName: symbol)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .frame(width: 30, height: 30)
+                    .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 9))
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value)
+                    .font(MossTypography.font(16, weight: .bold))
+                    .monospacedDigit()
+                Text(label)
+                    .font(MossTypography.font(10, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label)，\(value)")
     }
 }
 

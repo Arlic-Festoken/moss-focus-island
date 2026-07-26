@@ -11,7 +11,7 @@ enum AppSection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .insights: "成就岛"
+        case .insights: "成长志"
         default: rawValue
         }
     }
@@ -20,7 +20,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         switch self {
         case .today: "sun.max"
         case .timeline: "waveform.path.ecg"
-        case .insights: "sparkles"
+        case .insights: "book.closed.fill"
         case .archive: "archivebox"
         case .settings: "slider.horizontal.3"
         }
@@ -46,13 +46,15 @@ struct MainView: View {
             VStack(spacing: 0) {
                 HStack(spacing: 10) {
                     Image(systemName: "leaf.fill")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(MossTheme.sage)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(MossTheme.current.accentForeground)
+                        .frame(width: 31, height: 31)
+                        .background(MossTheme.sage, in: RoundedRectangle(cornerRadius: 10))
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Moss")
-                            .font(MossTypography.font(18, weight: .bold))
+                            .font(MossTypography.editorial(19, weight: .semibold))
                         Text("专注岛")
-                            .font(.caption)
+                            .font(MossTypography.font(10, weight: .medium))
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -72,15 +74,20 @@ struct MainView: View {
                         )
                 }
                 .listStyle(.sidebar)
+                .scrollContentBackground(.hidden)
 
                 SidebarFocusStatus()
                     .padding(14)
             }
+            .background(.ultraThinMaterial)
             .navigationSplitViewColumnWidth(min: 185, ideal: 208, max: 240)
         } detail: {
             Group {
                 switch selection.wrappedValue ?? .today {
-                case .today: TodayView()
+                case .today:
+                    TodayView {
+                        selectedSectionRaw = AppSection.timeline.rawValue
+                    }
                 case .timeline: TimelinePage()
                 case .insights: InsightsView()
                 case .archive: ArchiveView()
@@ -90,6 +97,7 @@ struct MainView: View {
             .background(MossTheme.paper)
         }
         .background(MossTheme.paper)
+        .tint(MossTheme.sage)
         .background(WindowConfigurator())
         .frame(minWidth: 900, minHeight: 620)
         .onAppear {
@@ -132,8 +140,8 @@ struct MainView: View {
             Text(store.wakeGapMessage ?? "")
         }
         .overlay(alignment: .top) {
-            if let message = store.transientMessage {
-                Text(message)
+            if let notice = store.transientNotice {
+                Text(notice.message)
                     .font(MossTypography.font(13, weight: .medium))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 9)
@@ -143,7 +151,7 @@ struct MainView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .animation(.easeInOut(duration: 0.22), value: store.transientMessage)
+        .animation(.easeInOut(duration: 0.22), value: store.transientNotice?.id)
     }
 
     @ViewBuilder
@@ -192,7 +200,7 @@ struct MainView: View {
             }
         case .awaitingReview:
             Button {
-                store.isReviewPresented = true
+                store.presentReview()
             } label: {
                 Label("完成记录", systemImage: "checkmark")
             }
@@ -202,22 +210,34 @@ struct MainView: View {
 
 private struct SidebarFocusStatus: View {
     @EnvironmentObject private var store: AppStore
+    @EnvironmentObject private var dataStore: DataStore
 
     var body: some View {
+        let analytics = FocusAnalyticsSnapshot(sessions: dataStore.sessions)
         VStack(alignment: .leading, spacing: 10) {
             if store.phase == .idle {
-                Label("岛屿安静着", systemImage: "leaf")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(MossTheme.sage)
-                Text("⌘⇧F 开始上一次任务")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                HStack {
+                    Label("岛屿安静着", systemImage: "leaf")
+                        .font(MossTypography.font(11, weight: .semibold))
+                        .foregroundStyle(MossTheme.sage)
+                    Spacer()
+                    Text("⌘⇧F")
+                        .font(MossTypography.font(9, weight: .bold))
+                        .foregroundStyle(.secondary)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("近 7 天 · \(analytics.recentFocus.compactDuration)")
+                        .font(MossTypography.font(11, weight: .medium))
+                    Text("全部积累 · \(analytics.totalFocus.compactDuration)")
+                        .font(MossTypography.font(10))
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 HStack {
                     ProgressRing(progress: store.progress, lineWidth: 4)
                         .frame(width: 28, height: 28)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(store.phase == .paused ? "暂停中" : store.phase == .breakTime ? "休息中" : store.phase == .preparing ? "进入状态" : "专注中")
+                        Text(sidebarPhaseTitle)
                             .font(.caption.weight(.semibold))
                         Text(store.displayTime.clockString)
                             .font(MossTypography.font(14, weight: .bold))
@@ -233,7 +253,22 @@ private struct SidebarFocusStatus: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(MossTheme.sage.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+        .background(MossTheme.sage.opacity(0.075), in: RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(MossTheme.sage.opacity(0.12), lineWidth: 1)
+        )
+    }
+
+    private var sidebarPhaseTitle: String {
+        switch store.phase {
+        case .idle: "未开始"
+        case .preparing: "进入状态"
+        case .focusing: "专注中"
+        case .paused: "暂停中"
+        case .breakTime: "休息中"
+        case .awaitingReview: "等待记录"
+        }
     }
 }
 
