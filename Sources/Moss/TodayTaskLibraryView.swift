@@ -3,6 +3,7 @@ import SwiftUI
 struct TodayTaskLibraryView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var dataStore: DataStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var expandedGroupID: TodayTaskGroup.ID?
     @State private var showingAllGroupIDs: Set<TodayTaskGroup.ID> = []
     @State private var targetedGroupID: TodayTaskGroup.ID?
@@ -64,18 +65,26 @@ struct TodayTaskLibraryView: View {
     }
 
     private func toggle(_ group: TodayTaskGroup) {
-        withAnimation(.easeOut(duration: 0.18)) {
+        updateDisclosure {
             expandedGroupID = expandedGroupID == group.id ? nil : group.id
         }
     }
 
     private func toggleShowingAll(_ group: TodayTaskGroup) {
-        withAnimation(.easeOut(duration: 0.18)) {
+        updateDisclosure {
             if showingAllGroupIDs.contains(group.id) {
                 showingAllGroupIDs.remove(group.id)
             } else {
                 showingAllGroupIDs.insert(group.id)
             }
+        }
+    }
+
+    private func updateDisclosure(_ updates: () -> Void) {
+        if reduceMotion {
+            updates()
+        } else {
+            withAnimation(.easeOut(duration: 0.18), updates)
         }
     }
 
@@ -411,7 +420,7 @@ private struct CompactTaskTile: View {
                     .font(MossTypography.font(12, weight: .semibold))
                     .lineLimit(1)
                 Text("\(totalFocus.compactDuration) · \(task.completedSessions) 段")
-                    .font(MossTypography.font(8))
+                    .font(MossTypography.font(9.5))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
