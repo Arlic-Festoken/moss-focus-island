@@ -218,6 +218,10 @@ struct HistoryFilter {
 
 struct FocusAnalyticsSnapshot {
     let totalFocus: TimeInterval
+    let currentYearFocus: TimeInterval
+    let currentYearActiveDays: Int
+    let recentFocus: TimeInterval
+    let recentMonths: [FocusMonthRecord]
     let completionCount: Int
     let abandonedCount: Int
     let completionRate: Double
@@ -234,6 +238,8 @@ struct FocusAnalyticsSnapshot {
     let levelProgress: Double
     let experienceToNextLevel: Int
     let achievements: [Achievement]
+    let latestUnlockedAchievement: Achievement?
+    let nextAchievement: Achievement?
 
     init(sessions: [FocusSession], now: Date = .now, calendar: Calendar = .current) {
         let all = sessions.sorted { $0.startedAt < $1.startedAt }
@@ -253,6 +259,30 @@ struct FocusAnalyticsSnapshot {
         }
         let monthRecords = monthGroups.map { date, items in
             FocusMonthRecord(date: date, duration: items.reduce(0) { $0 + $1.actualFocusDuration })
+        }
+        let today = calendar.startOfDay(for: now)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? now
+        let recentStart = calendar.date(byAdding: .day, value: -6, to: today) ?? today
+        let yearInterval = calendar.dateInterval(of: .year, for: now)
+        let currentYearSessions = completed.filter { session in
+            guard let yearInterval else { return false }
+            return yearInterval.contains(session.startedAt)
+        }
+        let currentMonth = calendar.date(
+            from: calendar.dateComponents([.year, .month], from: now)
+        ) ?? today
+        let recentMonths = (0..<12).compactMap { index -> FocusMonthRecord? in
+            guard let month = calendar.date(
+                byAdding: .month,
+                value: index - 11,
+                to: currentMonth
+            ) else {
+                return nil
+            }
+            return FocusMonthRecord(
+                date: month,
+                duration: monthGroups[month]?.reduce(0) { $0 + $1.actualFocusDuration } ?? 0
+            )
         }
         let sortedDates = dailyGroups.keys.sorted()
         let streaks = Self.streaks(dates: sortedDates, now: now, calendar: calendar)
@@ -278,6 +308,14 @@ struct FocusAnalyticsSnapshot {
         let xp = Int(total / 60)
         let progressXP = xp % 300
         self.totalFocus = total
+        currentYearFocus = currentYearSessions.reduce(0) { $0 + $1.actualFocusDuration }
+        currentYearActiveDays = Set(
+            currentYearSessions.map { calendar.startOfDay(for: $0.startedAt) }
+        ).count
+        recentFocus = completed
+            .filter { $0.startedAt >= recentStart && $0.startedAt < tomorrow }
+            .reduce(0) { $0 + $1.actualFocusDuration }
+        self.recentMonths = recentMonths
         completionCount = completed.count
         abandonedCount = all.filter { $0.status == .abandoned }.count
         completionRate = all.isEmpty ? 0 : Double(completed.count) / Double(all.count)
@@ -293,7 +331,7 @@ struct FocusAnalyticsSnapshot {
         level = xp / 300 + 1
         levelProgress = Double(progressXP) / 300
         experienceToNextLevel = 300 - progressXP
-        achievements = Self.buildAchievements(
+        let builtAchievements = Self.buildAchievements(
             completed: completed,
             dailyRecords: dailyRecords,
             titleMetrics: titleMetrics,
@@ -301,6 +339,12 @@ struct FocusAnalyticsSnapshot {
             longestStreak: streaks.longest,
             calendar: calendar
         )
+        achievements = builtAchievements
+        latestUnlockedAchievement = builtAchievements
+            .filter(\.isUnlocked)
+            .sorted { ($0.unlockedAt ?? .distantPast) > ($1.unlockedAt ?? .distantPast) }
+            .first
+        nextAchievement = builtAchievements.first { !$0.isUnlocked }
     }
 
     func metric(for title: String) -> TitleMetric? {
@@ -412,5 +456,42 @@ struct FocusAnalyticsSnapshot {
             previous = date
         }
         return nil
+    }
+}
+
+struct FocusCompletionReceipt: Identifiable {
+    let id: UUID
+    let focusedDuration: TimeInterval
+    let taskTitle: String
+    let taskTotal: TimeInterval
+    let overallTotal: TimeInterval
+    let completionCount: Int
+    let unlockedAchievement: Achievement?
+    let nextAchievement: Achievement?
+
+    static func make(
+        focusedDuration: TimeInterval,
+        taskTitle: String,
+        before: FocusAnalyticsSnapshot,
+        after: FocusAnalyticsSnapshot
+    ) -> FocusCompletionReceipt {
+        let previouslyUnlocked = Set(
+            before.achievements.filter(\.isUnlocked).map(\.id)
+        )
+        let newlyUnlocked = after.achievements
+            .filter { $0.isUnlocked && !previouslyUnlocked.contains($0.id) }
+            .sorted { ($0.unlockedAt ?? .distantPast) > ($1.unlockedAt ?? .distantPast) }
+            .first
+
+        return FocusCompletionReceipt(
+            id: UUID(),
+            focusedDuration: focusedDuration,
+            taskTitle: taskTitle,
+            taskTotal: after.metric(for: taskTitle)?.totalDuration ?? focusedDuration,
+            overallTotal: after.totalFocus,
+            completionCount: after.completionCount,
+            unlockedAchievement: newlyUnlocked,
+            nextAchievement: after.nextAchievement
+        )
     }
 }

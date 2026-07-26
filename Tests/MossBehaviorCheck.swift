@@ -92,6 +92,81 @@ struct MossBehaviorCheck {
         precondition(FocusAnalyticsSnapshot(sessions: [], calendar: calendar).level == 1)
         print("focus-analytics-achievements-filters=pass")
 
+        let accumulationNow = calendar.date(
+            from: DateComponents(year: 2026, month: 3, day: 8, hour: 12)
+        )!
+        let accumulationSessions = [
+            fixtureSession(
+                title: "课业",
+                date: calendar.date(from: DateComponents(year: 2025, month: 12, day: 30, hour: 9))!,
+                duration: 3_600,
+                status: .completed
+            ),
+            fixtureSession(
+                title: "课业",
+                date: calendar.date(from: DateComponents(year: 2026, month: 1, day: 2, hour: 9))!,
+                duration: 2 * 3_600,
+                status: .completed
+            ),
+            fixtureSession(
+                title: "开发",
+                date: calendar.date(from: DateComponents(year: 2026, month: 3, day: 5, hour: 9))!,
+                duration: 1_800,
+                status: .completed
+            )
+        ]
+        let accumulationAnalytics = FocusAnalyticsSnapshot(
+            sessions: accumulationSessions,
+            now: accumulationNow,
+            calendar: calendar
+        )
+        precondition(accumulationAnalytics.currentYearFocus == 9_000)
+        precondition(accumulationAnalytics.currentYearActiveDays == 2)
+        precondition(accumulationAnalytics.recentFocus == 1_800)
+        precondition(accumulationAnalytics.recentMonths.count == 12)
+        precondition(accumulationAnalytics.recentMonths.suffix(3).map(\.duration) == [7_200, 0, 1_800])
+        precondition(accumulationAnalytics.latestUnlockedAchievement?.id == "first")
+        precondition(accumulationAnalytics.nextAchievement?.id == "25h")
+
+        let thresholdDate = calendar.date(
+            from: DateComponents(year: 2026, month: 3, day: 7, hour: 9)
+        )!
+        let thresholdBase = fixtureSession(
+            title: "课业",
+            date: thresholdDate,
+            duration: 199 * 3_600 + 55 * 60,
+            status: .completed
+        )
+        let thresholdCrossing = fixtureSession(
+            title: "课业",
+            date: thresholdDate.addingTimeInterval(24 * 3_600),
+            duration: 10 * 60,
+            status: .completed
+        )
+        let thresholdBefore = FocusAnalyticsSnapshot(
+            sessions: [thresholdBase],
+            now: accumulationNow,
+            calendar: calendar
+        )
+        let thresholdAfter = FocusAnalyticsSnapshot(
+            sessions: [thresholdBase, thresholdCrossing],
+            now: accumulationNow,
+            calendar: calendar
+        )
+        let receipt = FocusCompletionReceipt.make(
+            focusedDuration: 10 * 60,
+            taskTitle: "课业",
+            before: thresholdBefore,
+            after: thresholdAfter
+        )
+        precondition(receipt.focusedDuration == 10 * 60)
+        precondition(receipt.taskTotal == 200 * 3_600 + 5 * 60)
+        precondition(receipt.overallTotal == 200 * 3_600 + 5 * 60)
+        precondition(receipt.completionCount == 2)
+        precondition(receipt.unlockedAchievement?.id == "200h")
+        precondition(receipt.nextAchievement?.id == "100sessions")
+        print("accumulation-projections-receipt=pass")
+
         let dataStore = DataStore()
         guard let task = dataStore.tasks.first else {
             fatalError("Expected a task for archive/delete checks")
