@@ -133,6 +133,10 @@ expect "Sources/Moss/TodayTaskLibraryView.swift" ".dropDestination(for: String.s
 expect "Sources/Moss/TodayTaskLibraryView.swift" "Menu(\"移动到项目\")"
 expect "Sources/Moss/TodayTaskLibraryView.swift" "展开另外"
 expect "Sources/Moss/TodayTaskLibraryView.swift" "@Environment(\\.accessibilityReduceMotion)"
+expect "Sources/Moss/TodayView.swift" "private var focusDashboard"
+expect "Sources/Moss/TodayView.swift" "private var insightRail"
+reject "Sources/Moss/TodayView.swift" "private var taskAndWeather"
+reject "Sources/Moss/TodayView.swift" "private var timelineAndFeedback"
 reject "Sources/Moss/TodayView.swift" "ForEach(tasks) { task in"
 reject "Sources/Moss/TodayView.swift" "private struct TaskCapsuleRow"
 

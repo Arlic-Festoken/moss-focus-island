@@ -31,8 +31,7 @@ struct TodayView: View {
                 header
                 statusCard
 
-                taskAndWeather
-                timelineAndFeedback
+                focusDashboard
             }
             .padding(28)
             .frame(maxWidth: 1160, alignment: .leading)
@@ -197,42 +196,34 @@ struct TodayView: View {
         TodayTaskLibraryView()
     }
 
-    private var taskAndWeather: some View {
+    private var focusDashboard: some View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .top, spacing: 18) {
                 taskCard
-                    .frame(minWidth: 440, maxWidth: .infinity)
-                FocusWeatherCard(metrics: metrics)
-                    .frame(width: 300)
+                    .frame(minWidth: 520, maxWidth: .infinity)
+                insightRail
+                    .frame(width: 340)
             }
             VStack(alignment: .leading, spacing: 18) {
                 taskCard
-                FocusWeatherCard(metrics: metrics)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                insightRail
             }
         }
     }
 
-    private var timelineAndFeedback: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 18) {
-                TodayTimelineCard(
-                    sessions: dataStore.sessions,
-                    onOpenTimeline: onOpenTimeline
-                )
-                    .frame(minWidth: 400, maxWidth: .infinity)
-                DailyFeedbackCard(metrics: metrics)
-                    .frame(width: 360)
-            }
-            VStack(alignment: .leading, spacing: 18) {
-                TodayTimelineCard(
-                    sessions: dataStore.sessions,
-                    onOpenTimeline: onOpenTimeline
-                )
-                DailyFeedbackCard(metrics: metrics)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+    private var insightRail: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            FocusWeatherCard(metrics: metrics)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            DailyFeedbackCard(metrics: metrics)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            TodayTimelineCard(
+                sessions: dataStore.sessions,
+                onOpenTimeline: onOpenTimeline
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var greeting: String {
@@ -469,9 +460,10 @@ private struct DailyFeedbackCard: View {
                             .font(MossTypography.font(13))
                             .foregroundStyle(index == 2 ? .primary : .secondary)
                             .fixedSize(horizontal: false, vertical: true)
-                    }
+                        }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
