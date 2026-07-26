@@ -286,6 +286,9 @@ struct MossBehaviorCheck {
         precondition(appStore.elapsed >= 1, "Resumed timer must advance")
         appStore.requestEnd()
         appStore.finishReview(completion: .partial, blocker: .none, distraction: .none, note: "")
+        precondition(appStore.completionReceipt?.focusedDuration ?? 0 > 0)
+        precondition(appStore.completionReceipt?.taskTitle == lifecycleTask.title)
+        precondition(appStore.completionReceipt?.overallTotal ?? 0 > 0)
         print("paused-review-resume=pass")
 
         var pomodoroTask = lifecycleTask

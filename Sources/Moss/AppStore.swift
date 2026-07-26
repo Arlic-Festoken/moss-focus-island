@@ -75,6 +75,7 @@ final class AppStore: ObservableObject {
     @Published var interruptionNeedsReason = false
     @Published var wakeGapMessage: String?
     @Published private(set) var transientNotice: TransientNotice?
+    @Published private(set) var completionReceipt: FocusCompletionReceipt?
     @Published private(set) var mainWindowRequested: Bool
 
     private(set) var dataStore: DataStore?
@@ -278,6 +279,7 @@ final class AppStore: ObservableObject {
         note: String
     ) {
         guard let current = run, let dataStore else { return }
+        let before = FocusAnalyticsSnapshot(sessions: dataStore.sessions)
         if let interruptionID = activeInterruptionID {
             dataStore.updateInterruption(id: interruptionID) { interruption in
                 interruption.endedAt = .now
@@ -308,6 +310,15 @@ final class AppStore: ObservableObject {
         if completion == .completed {
             dataStore.incrementCompletedSessions(taskID: current.taskID)
         }
+        let after = FocusAnalyticsSnapshot(sessions: dataStore.sessions)
+        showCompletionReceipt(
+            FocusCompletionReceipt.make(
+                focusedDuration: focused,
+                taskTitle: current.taskTitle,
+                before: before,
+                after: after
+            )
+        )
 
         isReviewPresented = false
         showTransient("+\(focused.compactDuration) 已记录")
@@ -394,6 +405,17 @@ final class AppStore: ObservableObject {
             guard let self else { return }
             if self.transientNotice?.id == notice.id {
                 self.transientNotice = nil
+            }
+        }
+    }
+
+    private func showCompletionReceipt(_ receipt: FocusCompletionReceipt) {
+        completionReceipt = receipt
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(4.8))
+            guard let self else { return }
+            if self.completionReceipt?.id == receipt.id {
+                self.completionReceipt = nil
             }
         }
     }

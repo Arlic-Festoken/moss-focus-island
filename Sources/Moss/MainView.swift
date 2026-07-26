@@ -29,7 +29,9 @@ enum AppSection: String, CaseIterable, Identifiable {
 
 struct MainView: View {
     @EnvironmentObject private var store: AppStore
+    @EnvironmentObject private var dataStore: DataStore
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("selectedSection") private var selectedSectionRaw = AppSection.today.rawValue
     @State private var isAddingTask = false
     @State private var isAddingProject = false
@@ -140,18 +142,40 @@ struct MainView: View {
             Text(store.wakeGapMessage ?? "")
         }
         .overlay(alignment: .top) {
-            if let notice = store.transientNotice {
-                Text(notice.message)
-                    .font(MossTypography.font(13, weight: .medium))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 9)
-                    .background(.regularMaterial, in: Capsule())
-                    .shadow(color: .black.opacity(0.12), radius: 12, y: 5)
-                    .padding(.top, 12)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+            VStack(spacing: 8) {
+                if let issue = dataStore.storageIssue {
+                    StorageIssueBanner(issue: issue)
+                        .environmentObject(dataStore)
+                }
+                if let notice = store.transientNotice {
+                    Text(notice.message)
+                        .font(MossTypography.font(13, weight: .medium))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
+                        .background(.regularMaterial, in: Capsule())
+                        .shadow(color: .black.opacity(0.12), radius: 12, y: 5)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
             }
+            .padding(.top, 12)
         }
         .animation(.easeInOut(duration: 0.22), value: store.transientNotice?.id)
+        .overlay(alignment: .topTrailing) {
+            if let receipt = store.completionReceipt {
+                FocusCompletionView(receipt: receipt)
+                    .padding(.top, 54)
+                    .padding(.trailing, 20)
+                    .transition(
+                        reduceMotion
+                            ? .opacity
+                            : .move(edge: .trailing).combined(with: .opacity)
+                    )
+            }
+        }
+        .animation(
+            reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.42, dampingFraction: 0.86),
+            value: store.completionReceipt?.id
+        )
     }
 
     @ViewBuilder
@@ -205,6 +229,48 @@ struct MainView: View {
                 Label("完成记录", systemImage: "checkmark")
             }
         }
+    }
+}
+
+private struct StorageIssueBanner: View {
+    @EnvironmentObject private var dataStore: DataStore
+    let issue: DataStoreIssue
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: issue.kind == .recovered ? "checkmark.shield.fill" : "exclamationmark.triangle.fill")
+                .foregroundStyle(issue.kind == .recovered ? MossTheme.mint : MossTheme.apricot)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(issue.title)
+                    .font(MossTypography.font(12, weight: .semibold))
+                Text(issue.message)
+                    .font(MossTypography.font(10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            if issue.canRestoreBackup {
+                Button("从备份恢复") {
+                    dataStore.restoreBackup()
+                }
+                .buttonStyle(CapsuleButtonStyle(prominent: true))
+            }
+            Button {
+                dataStore.dismissStorageIssue()
+            } label: {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("暂时关闭数据提示")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(maxWidth: 680)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 15))
+        .overlay(
+            RoundedRectangle(cornerRadius: 15)
+                .stroke(MossTheme.apricot.opacity(0.24), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.10), radius: 14, y: 6)
     }
 }
 
