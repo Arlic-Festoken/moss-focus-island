@@ -134,6 +134,40 @@ final class DataStore: ObservableObject {
         save()
     }
 
+    @discardableResult
+    func moveTask(id: UUID, toProjectID: UUID?) -> Bool {
+        guard let taskIndex = tasks.firstIndex(where: { $0.id == id }) else {
+            return false
+        }
+        guard tasks[taskIndex].projectID != toProjectID else {
+            return false
+        }
+
+        let targetProject: FocusProject?
+        if let toProjectID {
+            guard let project = projects.first(where: {
+                $0.id == toProjectID && !$0.archived
+            }) else {
+                return false
+            }
+            targetProject = project
+        } else {
+            targetProject = nil
+        }
+
+        let nextSortOrder = tasks
+            .filter { $0.projectID == toProjectID && $0.id != id }
+            .map(\.sortOrder)
+            .max()
+            .map { $0 + 1 } ?? 0
+        tasks[taskIndex].projectID = toProjectID
+        tasks[taskIndex].category = targetProject?.title ?? "未分类"
+        tasks[taskIndex].sortOrder = nextSortOrder
+        sortTasks()
+        save()
+        return true
+    }
+
     func archiveTask(id: UUID, archived: Bool) {
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return }
         tasks[index].archived = archived

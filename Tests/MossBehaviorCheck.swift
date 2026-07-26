@@ -353,6 +353,82 @@ struct MossBehaviorCheck {
         )
         print("today-task-presentation=pass")
 
+        let movementDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MossMoveTask-\(UUID().uuidString)", isDirectory: true)
+        try! FileManager.default.createDirectory(
+            at: movementDirectory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: movementDirectory) }
+        let movementURL = movementDirectory.appendingPathComponent("moss-data.json")
+        let movementStore = DataStore(fileURL: movementURL, seedIfMissing: false)
+        let sourceProject = FocusProject(title: "来源", sortOrder: 0)
+        let targetProject = FocusProject(title: "目标", sortOrder: 1)
+        movementStore.addProject(sourceProject)
+        movementStore.addProject(targetProject)
+        let targetExisting = FocusTask(
+            projectID: targetProject.id,
+            title: "已有",
+            category: targetProject.title,
+            sortOrder: 4
+        )
+        let movingTask = FocusTask(
+            projectID: sourceProject.id,
+            title: "待移动",
+            category: sourceProject.title,
+            sortOrder: 1
+        )
+        movementStore.addTask(targetExisting)
+        movementStore.addTask(movingTask)
+        let historicalSession = FocusSession(
+            taskID: movingTask.id,
+            taskTitle: movingTask.title,
+            projectID: sourceProject.id,
+            projectTitle: sourceProject.title,
+            category: sourceProject.title,
+            startedAt: .now,
+            plannedDuration: 1_500,
+            warmupDuration: 0,
+            timerActivity: .pomodoro,
+            mode: .standard
+        )
+        movementStore.addSession(historicalSession)
+        precondition(movementStore.moveTask(id: movingTask.id, toProjectID: targetProject.id))
+        precondition(
+            movementStore.tasks.first(where: { $0.id == movingTask.id })?.projectID
+                == targetProject.id
+        )
+        precondition(
+            movementStore.tasks.first(where: { $0.id == movingTask.id })?.category
+                == targetProject.title
+        )
+        precondition(
+            movementStore.tasks.first(where: { $0.id == movingTask.id })?.sortOrder == 5
+        )
+        precondition(movementStore.sessions.first?.projectID == sourceProject.id)
+        precondition(!movementStore.moveTask(id: movingTask.id, toProjectID: targetProject.id))
+        let reloadedMovementStore = DataStore(fileURL: movementURL, seedIfMissing: false)
+        precondition(
+            reloadedMovementStore.tasks.first(where: { $0.id == movingTask.id })?.projectID
+                == targetProject.id
+        )
+        precondition(movementStore.moveTask(id: movingTask.id, toProjectID: sourceProject.id))
+        var archivedTarget = targetProject
+        archivedTarget.archived = true
+        movementStore.updateProject(archivedTarget)
+        precondition(!movementStore.moveTask(id: movingTask.id, toProjectID: archivedTarget.id))
+        precondition(
+            movementStore.tasks.first(where: { $0.id == movingTask.id })?.projectID
+                == sourceProject.id
+        )
+        precondition(!movementStore.moveTask(id: movingTask.id, toProjectID: UUID()))
+        precondition(movementStore.moveTask(id: movingTask.id, toProjectID: nil))
+        precondition(
+            movementStore.tasks.first(where: { $0.id == movingTask.id })?.category
+                == "未分类"
+        )
+        print("task-project-movement=pass")
+
         var firstSortedTask = FocusTask(title: "Sorted first", category: "Tests", sortOrder: 0)
         firstSortedTask.warmupDuration = 0
         var recentlyUsedTask = FocusTask(title: "Recently used", category: "Tests", sortOrder: 99)
