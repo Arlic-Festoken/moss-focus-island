@@ -70,6 +70,7 @@ final class AppStore: ObservableObject {
     @Published var interruptionNeedsReason = false
     @Published var wakeGapMessage: String?
     @Published var transientMessage: String?
+    @Published private(set) var mainWindowRequested: Bool
 
     private(set) var dataStore: DataStore?
     private var timer: Timer?
@@ -79,6 +80,11 @@ final class AppStore: ObservableObject {
 
     private let defaults = UserDefaults.standard
     private let runKey = "moss.activeRun.v2"
+
+    init() {
+        let launchSilently = (UserDefaults.standard.object(forKey: "launchSilently") as? Bool) ?? true
+        mainWindowRequested = !launchSilently
+    }
 
     var isActive: Bool {
         phase == .preparing || phase == .focusing || phase == .paused || phase == .breakTime
@@ -351,15 +357,18 @@ final class AppStore: ObservableObject {
     }
 
     func openMainWindow() {
+        mainWindowRequested = true
         NSApplication.shared.setActivationPolicy(.regular)
-        if let window = NSApplication.shared.windows.first(where: {
-            $0.title == "Moss · 专注岛" && !($0 is NSPanel)
-        }) {
-            window.makeKeyAndOrderFront(nil)
-        } else {
-            MainWindowRouter.open?()
+        DispatchQueue.main.async {
+            if let window = NSApplication.shared.windows.first(where: {
+                $0.title == "Moss · 专注岛" && !($0 is NSPanel)
+            }) {
+                window.makeKeyAndOrderFront(nil)
+            } else {
+                MainWindowRouter.open?()
+            }
+            NSApplication.shared.activate(ignoringOtherApps: true)
         }
-        NSApplication.shared.activate(ignoringOtherApps: true)
     }
 
     func showTransient(_ message: String) {

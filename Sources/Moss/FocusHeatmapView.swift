@@ -74,24 +74,24 @@ private struct FocusHeatmapModel {
 
 struct FocusHeatmapView: View {
     let sessions: [FocusSession]
+    var title = "年度专注图"
+    var subtitle = "每一格是一天，专注越久，颜色越深。"
+    var referenceDate = Date.now
     @State private var hoveredDay: Date?
 
     private let cellSize: CGFloat = 11
     private let cellSpacing: CGFloat = 3
     private let weekdayWidth: CGFloat = 22
 
-    private var model: FocusHeatmapModel {
-        FocusHeatmapModel(sessions: sessions)
-    }
-
     var body: some View {
+        let model = FocusHeatmapModel(sessions: sessions, now: referenceDate)
         MossCard {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("年度专注图")
+                        Text(title)
                             .font(.title3.bold())
-                        Text("每一格是一天，专注越久，颜色越深。")
+                        Text(subtitle)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -123,10 +123,10 @@ struct FocusHeatmapView: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 5) {
-                        monthLabels
+                        monthLabels(model)
                         HStack(alignment: .top, spacing: 7) {
                             weekdayLabels
-                            heatmapGrid
+                            heatmapGrid(model)
                         }
                     }
                     .padding(.bottom, 2)
@@ -148,7 +148,7 @@ struct FocusHeatmapView: View {
         }
     }
 
-    private var monthLabels: some View {
+    private func monthLabels(_ model: FocusHeatmapModel) -> some View {
         HStack(spacing: cellSpacing) {
             Color.clear.frame(width: weekdayWidth + 7, height: 14)
             ForEach(0..<53, id: \.self) { week in
@@ -175,7 +175,7 @@ struct FocusHeatmapView: View {
         }
     }
 
-    private var heatmapGrid: some View {
+    private func heatmapGrid(_ model: FocusHeatmapModel) -> some View {
         HStack(alignment: .top, spacing: cellSpacing) {
             ForEach(0..<53, id: \.self) { week in
                 VStack(spacing: cellSpacing) {

@@ -9,6 +9,13 @@ enum AppSection: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    var title: String {
+        switch self {
+        case .insights: "成就岛"
+        default: rawValue
+        }
+    }
+
     var icon: String {
         switch self {
         case .today: "sun.max"
@@ -55,7 +62,7 @@ struct MainView: View {
                 .padding(.bottom, 18)
 
                 List(AppSection.allCases, selection: selection) { section in
-                    Label(section.rawValue, systemImage: section.icon)
+                    Label(section.title, systemImage: section.icon)
                         .font(MossTypography.font(14, weight: .medium))
                         .tag(section)
                         .listRowBackground(

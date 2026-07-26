@@ -31,6 +31,7 @@ expect "Sources/Moss/MossApp.swift" "let launchSilently = (UserDefaults.standard
 expect "Sources/Moss/MossApp.swift" "DispatchQueue.main.asyncAfter(deadline: .now() + 0.35)"
 expect "Sources/Moss/MossApp.swift" '$0.title == "Moss · 专注岛" && $0.isVisible'
 expect "Sources/Moss/MossApp.swift" "window.orderOut(nil)"
+expect "Sources/Moss/MossApp.swift" "if store.mainWindowRequested"
 reject "Sources/Moss/MossApp.swift" "terminate("
 reject "Sources/Moss/MossApp.swift" ".hide("
 expect "Sources/Moss/MossApp.swift" "Window(\"Moss · 专注岛\", id: \"main\")"
@@ -75,9 +76,14 @@ reject "Sources/Moss/TodayView.swift" ".onTapGesture(count: 2)"
 expect "Sources/Moss/MenuBarView.swift" "store.startLastTask()"
 expect "Sources/Moss/MenuBarView.swift" "private var preferredTask"
 expect "Sources/Moss/NotchPanel.swift" "打开专注控制"
-expect "Sources/Moss/TimelinePage.swift" "range = .day"
-expect "Sources/Moss/TimelinePage.swift" "monthTextColor(duration: item.duration)"
-expect "Sources/Moss/TimelinePage.swift" ".accessibilityLabel(item.date.formatted"
+expect "Sources/Moss/TimelinePage.swift" 'case all = "全部"'
+expect "Sources/Moss/TimelinePage.swift" 'TextField("搜索 title、项目或心得"'
+expect "Sources/Moss/TimelinePage.swift" "HistoryStatusFilter.allCases"
+expect "Sources/Moss/TimelinePage.swift" "SessionStatusBadge(status: session.status)"
+expect "Sources/Moss/InsightsView.swift" 'Text("专注岛拓荒")'
+expect "Sources/Moss/InsightsView.swift" "IslandMapCard(metrics: analytics.titleMetrics)"
+expect "Sources/Moss/TitleDetailView.swift" 'Text("成长曲线")'
+expect "Sources/Moss/FocusAnalytics.swift" "experienceToNextLevel"
 expect "Sources/Moss/ReviewView.swift" "MossTheme.current.accentForeground"
 expect "Sources/Moss/SettingsView.swift" ".accessibilityAddTraits(selection =="
 expect "Sources/Moss/SettingsView.swift" "也可以直接拖动专注岛"

@@ -32,6 +32,66 @@ struct MossBehaviorCheck {
         precondition(taskDefaults.discardThreshold == 120)
         print("configured-new-task-defaults=pass")
 
+        let calendar = utcCalendar
+        let streakSessions = (1...7).map { day in
+            fixtureSession(
+                title: day == 1 ? "漫游" : "计组",
+                date: calendar.date(from: DateComponents(year: 2026, month: 1, day: day, hour: 10))!,
+                duration: 1_500,
+                status: .completed
+            )
+        }
+        let abandonedFixture = fixtureSession(
+            title: "漫游",
+            date: calendar.date(from: DateComponents(year: 2026, month: 1, day: 4, hour: 14))!,
+            duration: 900,
+            status: .abandoned
+        )
+        let analyticsFixture = FocusAnalyticsSnapshot(
+            sessions: streakSessions + [abandonedFixture],
+            now: calendar.date(from: DateComponents(year: 2026, month: 1, day: 8, hour: 8))!,
+            calendar: calendar
+        )
+        precondition(analyticsFixture.completionCount == 7)
+        precondition(analyticsFixture.abandonedCount == 1)
+        precondition(analyticsFixture.totalFocus == 10_500)
+        precondition(analyticsFixture.activeDays == 7)
+        precondition(analyticsFixture.currentStreak == 7)
+        precondition(analyticsFixture.longestStreak == 7)
+        precondition(TitleProfile.resolve("漫游").group == .exploration)
+        precondition(TitleMastery.resolve(duration: 2 * 3_600) == .sprout)
+        let completedExploration = HistoryFilter(group: .exploration, status: .completed)
+        precondition(completedExploration.matches(streakSessions[0]))
+        precondition(!completedExploration.matches(abandonedFixture))
+
+        let importedScale = fixtureSession(
+            title: "课业",
+            date: calendar.date(from: DateComponents(year: 2026, month: 2, day: 1, hour: 9))!,
+            duration: 11_427 * 60,
+            status: .completed
+        )
+        let importedScaleAnalytics = FocusAnalyticsSnapshot(sessions: [importedScale], calendar: calendar)
+        precondition(importedScaleAnalytics.level == 39)
+        precondition(importedScaleAnalytics.experienceToNextLevel == 273)
+
+        let crossYear = [
+            fixtureSession(
+                title: "高数",
+                date: calendar.date(from: DateComponents(year: 2025, month: 12, day: 31, hour: 9))!,
+                duration: 1_500,
+                status: .completed
+            ),
+            fixtureSession(
+                title: "高数",
+                date: calendar.date(from: DateComponents(year: 2026, month: 1, day: 1, hour: 9))!,
+                duration: 1_500,
+                status: .completed
+            )
+        ]
+        precondition(FocusAnalyticsSnapshot(sessions: crossYear, calendar: calendar).longestStreak == 2)
+        precondition(FocusAnalyticsSnapshot(sessions: [], calendar: calendar).level == 1)
+        print("focus-analytics-achievements-filters=pass")
+
         let dataStore = DataStore()
         guard let task = dataStore.tasks.first else {
             fatalError("Expected a task for archive/delete checks")
@@ -279,6 +339,36 @@ struct MossBehaviorCheck {
         precondition(payload.projects.first?.archived == true)
         precondition(payload.tasks.first?.breakDuration == 20 * 60)
         print("json-export-roundtrip=pass")
+    }
+
+    private static var utcCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }
+
+    private static func fixtureSession(
+        title: String,
+        date: Date,
+        duration: TimeInterval,
+        status: SessionStatus
+    ) -> FocusSession {
+        var session = FocusSession(
+            taskID: UUID(),
+            taskTitle: title,
+            projectID: nil,
+            projectTitle: TitleProfile.resolve(title).group.title,
+            category: TitleProfile.resolve(title).group.title,
+            startedAt: date,
+            plannedDuration: duration,
+            warmupDuration: 0,
+            timerActivity: .pomodoro,
+            mode: .standard
+        )
+        session.endedAt = date.addingTimeInterval(duration)
+        session.actualFocusDuration = duration
+        session.statusRaw = status.rawValue
+        return session
     }
 }
 

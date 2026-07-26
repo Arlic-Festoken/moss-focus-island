@@ -34,7 +34,14 @@ struct MossApp: App {
 
     var body: some Scene {
         Window("Moss · 专注岛", id: "main") {
-            MainView()
+            Group {
+                if store.mainWindowRequested {
+                    MainView()
+                } else {
+                    Color.clear
+                        .accessibilityHidden(true)
+                }
+            }
                 .environmentObject(store)
                 .environmentObject(dataStore)
                 .mossTypography()

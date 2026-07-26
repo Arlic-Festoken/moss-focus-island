@@ -26,8 +26,7 @@ struct MenuBarView: View {
 
             HStack {
                 Button {
-                    openWindow(id: "main")
-                    NSApplication.shared.activate(ignoringOtherApps: true)
+                    store.openMainWindow()
                 } label: {
                     Label("打开 Moss", systemImage: "rectangle.on.rectangle")
                 }
