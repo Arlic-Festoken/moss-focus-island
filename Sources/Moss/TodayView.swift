@@ -23,6 +23,15 @@ struct TodayView: View {
         store.isActive || store.phase == .awaitingReview
     }
 
+    private var analytics: FocusAnalyticsSnapshot {
+        FocusAnalyticsSnapshot(sessions: dataStore.sessions)
+    }
+
+    private var currentTaskTotal: TimeInterval {
+        guard let taskID = store.currentTaskID else { return 0 }
+        return dataStore.totalFocus(for: taskID)
+    }
+
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 18) {
@@ -38,73 +47,146 @@ struct TodayView: View {
     }
 
     private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(greeting)
-                    .font(MossTypography.font(30, weight: .bold))
-                Text(Date.now.formatted(.dateTime.month(.wide).day().weekday(.wide)))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+        MossPageHeader(
+            eyebrow: "Today",
+            title: greeting,
+            subtitle: Date.now.formatted(.dateTime.month(.wide).day().weekday(.wide))
+        )
+    }
+
+    private var statusCard: some View {
+        MossCard(kind: .hero) {
+            VStack(alignment: .leading, spacing: 20) {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .center, spacing: 30) {
+                        heroPrimaryContent
+                        Spacer(minLength: 20)
+                        heroActionContent
+                    }
+                    VStack(alignment: .leading, spacing: 20) {
+                        heroPrimaryContent
+                        heroActionContent
+                    }
+                }
+
+                Divider().opacity(0.55)
+
+                HStack(spacing: 0) {
+                    MossMetric(
+                        value: metrics.totalFocus.compactDuration,
+                        label: "今日投入",
+                        symbol: "sun.max.fill",
+                        tint: MossTheme.apricot
+                    )
+                    Divider().frame(height: 34)
+                    MossMetric(
+                        value: analytics.totalFocus.compactDuration,
+                        label: "全部积累",
+                        symbol: "leaf.fill"
+                    )
+                    Divider().frame(height: 34)
+                    MossMetric(
+                        value: "\(analytics.activeDays) 天",
+                        label: "留下痕迹",
+                        symbol: "calendar"
+                    )
+                }
             }
         }
     }
 
-    private var statusCard: some View {
-        MossCard {
-            HStack(spacing: 26) {
-                VStack(alignment: .leading, spacing: 7) {
-                    Text(statusTitle)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(MossTheme.sage)
-                    Text(isShowingCurrentSession ? store.displayTime.clockString : metrics.totalFocus.compactDuration)
-                        .font(MossTypography.font(42, weight: .bold))
-                        .monospacedDigit()
-                    Text(isShowingCurrentSession
-                         ? "\(store.currentCategory) · \(store.currentTaskTitle)"
-                         : "完成 \(metrics.completedCount) 个专注段")
-                        .font(MossTypography.font(14))
-                        .foregroundStyle(.secondary)
-                    if isShowingCurrentSession {
-                        TodayFocusControls()
-                            .padding(.top, 7)
-                    }
-                }
-                Spacer()
-                if isShowingCurrentSession {
-                    ProgressRing(
-                        progress: store.progress,
-                        lineWidth: 9,
-                        tint: store.phase == .breakTime ? MossTheme.apricot : MossTheme.sage
+    @ViewBuilder
+    private var heroPrimaryContent: some View {
+        if isShowingCurrentSession {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(statusTitle)
+                    .font(MossTypography.font(11, weight: .bold))
+                    .tracking(0.7)
+                    .foregroundStyle(MossTheme.sage)
+                Text(store.displayTime.clockString)
+                    .font(MossTypography.font(46, weight: .bold))
+                    .monospacedDigit()
+                Text("\(store.currentProjectTitle.isEmpty ? store.currentCategory : store.currentProjectTitle) · \(store.currentTaskTitle)")
+                    .font(MossTypography.font(13, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Label(
+                    "当前领域 \(currentTaskTotal.compactDuration)",
+                    systemImage: "map.fill"
+                )
+                .font(MossTypography.font(11, weight: .semibold))
+                .foregroundStyle(MossTheme.sage)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 9) {
+                Text("YOUR BODY OF WORK")
+                    .font(MossTypography.font(10, weight: .bold))
+                    .tracking(1.4)
+                    .foregroundStyle(MossTheme.sage)
+                Text(idleHeroTitle)
+                    .font(MossTypography.editorial(32, weight: .semibold))
+                    .tracking(-0.45)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    metrics.completedCount > 0
+                        ? "今天已经完成 \(metrics.completedCount) 段，下一段会继续长在这份积累上。"
+                        : "今天还没有开始，但过去的投入没有归零。"
+                )
+                .font(MossTypography.font(13))
+                .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: 610, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private var heroActionContent: some View {
+        if isShowingCurrentSession {
+            HStack(spacing: 18) {
+                TodayFocusControls()
+                ProgressRing(
+                    progress: store.progress,
+                    lineWidth: 8,
+                    tint: store.phase == .breakTime ? MossTheme.apricot : MossTheme.sage
+                )
+                .frame(width: 76, height: 76)
+                .overlay {
+                    Image(
+                        systemName: store.phase == .paused
+                            ? "pause.fill"
+                            : store.phase == .breakTime ? "cup.and.saucer.fill" : "leaf.fill"
                     )
-                    .frame(width: 94, height: 94)
-                    .overlay {
-                        Image(systemName: store.phase == .paused ? "pause.fill" : store.phase == .breakTime ? "cup.and.saucer.fill" : "leaf.fill")
-                            .font(.system(size: 25))
-                            .foregroundStyle(store.phase == .breakTime ? MossTheme.apricot : MossTheme.sage)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(store.phase == .breakTime ? MossTheme.apricot : MossTheme.sage)
+                }
+            }
+        } else if let next = dataStore.preferredStartTask {
+            VStack(alignment: .trailing, spacing: 11) {
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text("继续 \(next.title)")
+                        .font(MossTypography.font(15, weight: .bold))
+                    Text(next.timerActivity.title)
+                        .font(MossTypography.font(10))
+                        .foregroundStyle(.secondary)
+                }
+                HStack(spacing: 8) {
+                    Button("先做 5 分钟") {
+                        store.start(task: next, mode: .ignition)
                     }
-                } else {
-                    VStack(alignment: .trailing, spacing: 10) {
-                        if let next = dataStore.preferredStartTask {
-                            Text("下一任务")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                            Text(next.title)
-                                .font(.headline)
-                            HStack {
-                                Button("先做 5 分钟") {
-                                    store.start(task: next, mode: .ignition)
-                                }
-                                .buttonStyle(CapsuleButtonStyle(tint: MossTheme.apricot))
-                                Button("开始下一段") {
-                                    store.start(task: next)
-                                }
-                                .buttonStyle(CapsuleButtonStyle(prominent: true))
-                            }
-                        }
+                    .buttonStyle(CapsuleButtonStyle(tint: MossTheme.apricot))
+                    Button("开始下一段") {
+                        store.start(task: next)
                     }
+                    .buttonStyle(CapsuleButtonStyle(prominent: true))
                 }
             }
         }
+    }
+
+    private var idleHeroTitle: String {
+        guard analytics.totalFocus > 0 else {
+            return "从第一段开始，让时间留下形状。"
+        }
+        return "把今天的一小段，加入 \(analytics.totalFocus.chineseDuration) 里。"
     }
 
     private var statusTitle: String {
@@ -123,7 +205,7 @@ struct TodayView: View {
             VStack(alignment: .leading, spacing: 15) {
                 HStack {
                     Text("今天的任务")
-                        .font(.title3.bold())
+                        .font(MossTypography.editorial(20, weight: .semibold))
                     Spacer()
                     Text("\(activeTasks.count) 项")
                         .font(.caption)
@@ -503,7 +585,7 @@ private struct FocusWeatherCard: View {
     }
 
     var body: some View {
-        MossCard {
+        MossCard(kind: .quiet) {
             VStack(alignment: .leading, spacing: 15) {
                 HStack {
                     Image(systemName: "sun.haze.fill")
@@ -519,7 +601,7 @@ private struct FocusWeatherCard: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Text(weather.title)
-                    .font(.title3.bold())
+                    .font(MossTypography.editorial(20, weight: .semibold))
                 Text(weather.advice)
                     .font(MossTypography.font(13))
                     .foregroundStyle(.secondary)
@@ -544,7 +626,7 @@ private struct TodayTimelineCard: View {
             VStack(alignment: .leading, spacing: 15) {
                 HStack {
                     Text("专注轨迹")
-                        .font(.title3.bold())
+                        .font(MossTypography.editorial(20, weight: .semibold))
                     Spacer()
                     Button("查看全部", action: onOpenTimeline)
                         .buttonStyle(.plain)
@@ -603,13 +685,13 @@ private struct DailyFeedbackCard: View {
     let metrics: DailyMetrics
 
     var body: some View {
-        MossCard {
+        MossCard(kind: .quiet) {
             VStack(alignment: .leading, spacing: 15) {
                 HStack {
                     Image(systemName: "quote.bubble.fill")
                         .foregroundStyle(MossTheme.sage)
                     Text("今日反馈")
-                        .font(.title3.bold())
+                        .font(MossTypography.editorial(20, weight: .semibold))
                 }
                 ForEach(Array(InsightEngine.feedback(for: metrics).enumerated()), id: \.offset) { index, item in
                     HStack(alignment: .top, spacing: 10) {
