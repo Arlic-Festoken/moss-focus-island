@@ -397,11 +397,14 @@ final class AppStore: ObservableObject {
         }
     }
 
-    func showTransient(_ message: String) {
+    func showTransient(
+        _ message: String,
+        duration: Duration = .seconds(2.4)
+    ) {
         let notice = TransientNotice(message: message)
         transientNotice = notice
         Task { [weak self] in
-            try? await Task.sleep(for: .seconds(2.4))
+            try? await Task.sleep(for: duration)
             guard let self else { return }
             if self.transientNotice?.id == notice.id {
                 self.transientNotice = nil

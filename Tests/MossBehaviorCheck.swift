@@ -14,13 +14,27 @@ struct MossBehaviorCheck {
         let v2Key = "moss.activeRun.v2"
         let savedV1 = standardDefaults.data(forKey: v1Key)
         let savedV2 = standardDefaults.data(forKey: v2Key)
+        let savedLaunchSilently = standardDefaults.object(forKey: "launchSilently")
+        let savedSubtleSound = standardDefaults.object(forKey: "subtleSound")
         standardDefaults.removeObject(forKey: v1Key)
         standardDefaults.removeObject(forKey: v2Key)
+        standardDefaults.set(true, forKey: "launchSilently")
+        standardDefaults.set(false, forKey: "subtleSound")
         defer {
             if let savedV1 { standardDefaults.set(savedV1, forKey: v1Key) }
             else { standardDefaults.removeObject(forKey: v1Key) }
             if let savedV2 { standardDefaults.set(savedV2, forKey: v2Key) }
             else { standardDefaults.removeObject(forKey: v2Key) }
+            if let savedLaunchSilently {
+                standardDefaults.set(savedLaunchSilently, forKey: "launchSilently")
+            } else {
+                standardDefaults.removeObject(forKey: "launchSilently")
+            }
+            if let savedSubtleSound {
+                standardDefaults.set(savedSubtleSound, forKey: "subtleSound")
+            } else {
+                standardDefaults.removeObject(forKey: "subtleSound")
+            }
         }
 
         defaults.set(40, forKey: "focusMinutes")
@@ -91,6 +105,72 @@ struct MossBehaviorCheck {
         precondition(FocusAnalyticsSnapshot(sessions: crossYear, calendar: calendar).longestStreak == 2)
         precondition(FocusAnalyticsSnapshot(sessions: [], calendar: calendar).level == 1)
         print("focus-analytics-achievements-filters=pass")
+
+        let primaryScreen = IslandScreenGeometry(
+            frame: CGRect(x: 0, y: 0, width: 1_440, height: 900),
+            visibleFrame: CGRect(x: 0, y: 24, width: 1_440, height: 852),
+            safeAreaTop: 32,
+            displayID: "primary"
+        )
+        for placement in IslandPlacement.allCases {
+            for presentation in [
+                IslandPanelPresentation.idle,
+                .compact,
+                .expanded
+            ] {
+                let size = IslandPanelGeometry.size(
+                    for: presentation,
+                    hasNotch: primaryScreen.hasNotch,
+                    placement: placement
+                )
+                let frame = IslandPanelGeometry.frame(
+                    placement: placement,
+                    screen: primaryScreen,
+                    size: size,
+                    offset: .zero
+                )
+                let bounds = IslandPanelGeometry.movementBounds(
+                    for: placement,
+                    screen: primaryScreen
+                )
+                precondition(frame.minX >= bounds.minX)
+                precondition(frame.minY >= bounds.minY)
+                precondition(frame.maxX <= bounds.maxX)
+                precondition(frame.maxY <= bounds.maxY)
+                if presentation == .expanded {
+                    precondition(size.width >= 470, "Expanded island content must not clip")
+                }
+            }
+        }
+        let secondaryScreen = IslandScreenGeometry(
+            frame: CGRect(x: 1_440, y: 0, width: 1_920, height: 1_080),
+            visibleFrame: CGRect(x: 1_440, y: 0, width: 1_920, height: 1_056),
+            safeAreaTop: 0,
+            displayID: "secondary"
+        )
+        let secondarySize = IslandPanelGeometry.size(
+            for: .expanded,
+            hasNotch: false,
+            placement: .topTrailing
+        )
+        let secondaryFrame = IslandPanelGeometry.frame(
+            placement: .topTrailing,
+            screen: secondaryScreen,
+            size: secondarySize,
+            offset: CGSize(width: -40, height: -20)
+        )
+        let roundTripOffset = IslandPanelGeometry.offset(
+            for: secondaryFrame,
+            placement: .topTrailing,
+            screen: secondaryScreen
+        )
+        precondition(abs(roundTripOffset.width + 40) < 0.001)
+        precondition(abs(roundTripOffset.height + 20) < 0.001)
+        let oversized = CGRect(x: -10_000, y: 10_000, width: 500, height: 74)
+        let clamped = IslandPanelGeometry.clamped(oversized, to: secondaryScreen.visibleFrame)
+        precondition(clamped.minX == secondaryScreen.visibleFrame.minX)
+        precondition(clamped.maxY == secondaryScreen.visibleFrame.maxY)
+        print("island-panel-geometry=pass")
 
         let accumulationNow = calendar.date(
             from: DateComponents(year: 2026, month: 3, day: 8, hour: 12)
@@ -268,7 +348,25 @@ struct MossBehaviorCheck {
             !lifecycleStore.startableTasks.contains(where: { $0.id == archivedChild.id }),
             "Tasks inside archived projects must not be startable"
         )
+        lifecycleStore.archiveTask(id: archivedChild.id, archived: true)
+        lifecycleStore.restoreTask(id: archivedChild.id)
+        precondition(
+            lifecycleStore.projects.first(where: { $0.id == archivedProject.id })?.archived == false
+        )
+        precondition(
+            lifecycleStore.tasks.first(where: { $0.id == archivedChild.id })?.archived == false
+        )
         print("archived-project-task-filter=pass")
+
+        let noticeStore = AppStore()
+        noticeStore.showTransient("重复提示", duration: .milliseconds(80))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.04))
+        noticeStore.showTransient("重复提示", duration: .milliseconds(180))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.08))
+        precondition(noticeStore.transientNotice?.message == "重复提示")
+        RunLoop.main.run(until: Date().addingTimeInterval(0.14))
+        precondition(noticeStore.transientNotice == nil)
+        print("transient-notice-identity=pass")
 
         let appStore = AppStore()
         appStore.configure(with: lifecycleStore)
@@ -306,6 +404,35 @@ struct MossBehaviorCheck {
         precondition(pomodoroStore.phase == .breakTime, "Pomodoro intervals should offer a break after review")
         pomodoroStore.skipBreak()
         print("pomodoro-partial-break=pass")
+
+        var autoCompletionTask = lifecycleTask
+        autoCompletionTask.id = UUID()
+        autoCompletionTask.title = "Automatic completion"
+        autoCompletionTask.timerActivityRaw = TimerActivity.countdown.rawValue
+        autoCompletionTask.focusDuration = 1
+        autoCompletionTask.warmupDuration = 0
+        autoCompletionTask.discardThreshold = 0
+        lifecycleStore.addTask(autoCompletionTask)
+        standardDefaults.removeObject(forKey: v2Key)
+        let autoCompletionStore = AppStore()
+        autoCompletionStore.configure(with: lifecycleStore)
+        precondition(!autoCompletionStore.mainWindowRequested)
+        autoCompletionStore.start(task: autoCompletionTask)
+        RunLoop.main.run(until: Date().addingTimeInterval(1.2))
+        precondition(autoCompletionStore.phase == .awaitingReview)
+        precondition(!autoCompletionStore.mainWindowRequested)
+        precondition(!autoCompletionStore.isReviewPresented)
+        autoCompletionStore.presentReview()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.12))
+        precondition(autoCompletionStore.mainWindowRequested)
+        precondition(autoCompletionStore.isReviewPresented)
+        autoCompletionStore.finishReview(
+            completion: .partial,
+            blocker: .none,
+            distraction: .none,
+            note: ""
+        )
+        print("automatic-completion-review-presentation=pass")
 
         var interruptionTask = lifecycleTask
         interruptionTask.id = UUID()
@@ -394,6 +521,56 @@ struct MossBehaviorCheck {
         precondition(standardDefaults.data(forKey: v1Key) == nil)
         print("legacy-active-run-migration=pass")
 
+        let storageDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MossBehaviorCheck-\(UUID().uuidString)", isDirectory: true)
+        try! FileManager.default.createDirectory(
+            at: storageDirectory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: storageDirectory) }
+        let primaryURL = storageDirectory.appendingPathComponent("moss-data.json")
+        let corruptData = Data("{not valid json".utf8)
+        try! corruptData.write(to: primaryURL)
+        let recoveryProject = FocusProject(title: "Recovered project")
+        let recoveryTask = FocusTask(
+            projectID: recoveryProject.id,
+            title: "Recovered task",
+            category: recoveryProject.title
+        )
+        let recoveryDatabase = MossDatabase(
+            projects: [recoveryProject],
+            tasks: [recoveryTask]
+        )
+        let storageEncoder = JSONEncoder()
+        storageEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        storageEncoder.dateEncodingStrategy = .iso8601
+        try! storageEncoder.encode(recoveryDatabase).write(
+            to: DataStore.backupURL(for: primaryURL),
+            options: .atomic
+        )
+        let recoveryStore = DataStore(fileURL: primaryURL, seedIfMissing: true)
+        precondition(recoveryStore.storageIssue?.kind == .unreadable)
+        precondition(recoveryStore.storageIssue?.canRestoreBackup == true)
+        precondition(try! Data(contentsOf: primaryURL) == corruptData)
+        precondition(recoveryStore.tasks.isEmpty)
+        recoveryStore.restoreBackup()
+        precondition(recoveryStore.tasks.first?.id == recoveryTask.id)
+        precondition(recoveryStore.storageIssue?.kind == .recovered)
+        let recoveredData = try! Data(contentsOf: primaryURL)
+        let storageDecoder = JSONDecoder()
+        storageDecoder.dateDecodingStrategy = .iso8601
+        let recoveredDatabase = try! storageDecoder.decode(
+            MossDatabase.self,
+            from: recoveredData
+        )
+        precondition(recoveredDatabase.tasks.first?.id == recoveryTask.id)
+        let preservedCorruptFiles = try! FileManager.default.contentsOfDirectory(
+            at: storageDirectory,
+            includingPropertiesForKeys: nil
+        ).filter { $0.lastPathComponent.contains(".corrupt-") }
+        precondition(preservedCorruptFiles.count == 1)
+        print("corrupt-storage-recovery=pass")
+
         let exportProject = FocusProject(
             title: "Export project",
             symbol: "shippingbox.fill",
@@ -405,10 +582,39 @@ struct MossBehaviorCheck {
             category: exportProject.title
         )
         exportTask.breakDuration = 20 * 60
+        let exportSession = fixtureSession(
+            title: exportTask.title,
+            date: .now,
+            duration: 1_500,
+            status: .completed
+        )
+        let exportInterruption = Interruption(
+            sessionID: exportSession.id,
+            reason: .phone
+        )
+        let exportReflection = Reflection(
+            sessionID: exportSession.id,
+            blockerType: .difficult,
+            freeText: "需要拆小"
+        )
+        let exportSnapshot = DailySnapshot(
+            id: UUID(),
+            date: .now,
+            totalFocusDuration: 1_500,
+            sessionsCompleted: 1,
+            startFriction: 20,
+            interruptionRate: 0.2,
+            planAccuracy: 0.9,
+            topCategory: exportProject.title,
+            generatedSummary: "稳定推进"
+        )
         let exportData = try! ExportService.jsonData(
             projects: [exportProject],
             tasks: [exportTask],
-            sessions: []
+            sessions: [exportSession],
+            interruptions: [exportInterruption],
+            reflections: [exportReflection],
+            snapshots: [exportSnapshot]
         )
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -416,6 +622,10 @@ struct MossBehaviorCheck {
         precondition(payload.projects.first?.symbol == "shippingbox.fill")
         precondition(payload.projects.first?.archived == true)
         precondition(payload.tasks.first?.breakDuration == 20 * 60)
+        precondition(payload.sessions.count == 1)
+        precondition(payload.interruptions.first?.reasonRaw == InterruptionReason.phone.rawValue)
+        precondition(payload.reflections.first?.freeText == "需要拆小")
+        precondition(payload.snapshots.first?.generatedSummary == "稳定推进")
         print("json-export-roundtrip=pass")
     }
 
