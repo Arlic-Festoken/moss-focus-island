@@ -339,7 +339,7 @@ private struct YearSealCard: View {
 
             HStack(spacing: 16) {
                 Label("\(analytics.currentYearActiveDays) 个活跃日", systemImage: "calendar")
-                Label("\(analytics.completionCount) 段完成", systemImage: "checkmark")
+                Label("全部 \(analytics.completionCount) 段", systemImage: "checkmark")
             }
             .font(MossTypography.font(10, weight: .medium))
             .foregroundStyle(.white.opacity(0.70))

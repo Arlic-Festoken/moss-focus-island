@@ -65,18 +65,21 @@ struct MainView: View {
                 .padding(.top, 22)
                 .padding(.bottom, 18)
 
-                List(AppSection.allCases, selection: selection) { section in
-                    Label(section.title, systemImage: section.icon)
-                        .font(MossTypography.font(14, weight: .medium))
-                        .tag(section)
-                        .listRowBackground(
-                            selection.wrappedValue == section
-                                ? MossTheme.sage.opacity(0.14)
-                                : Color.clear
-                        )
+                ScrollView {
+                    VStack(spacing: 4) {
+                        ForEach(AppSection.allCases) { section in
+                            SidebarSectionRow(
+                                section: section,
+                                isSelected: selection.wrappedValue == section
+                            ) {
+                                selection.wrappedValue = section
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 2)
                 }
-                .listStyle(.sidebar)
-                .scrollContentBackground(.hidden)
+                .frame(maxHeight: .infinity, alignment: .top)
 
                 SidebarFocusStatus()
                     .padding(14)
@@ -271,6 +274,48 @@ private struct StorageIssueBanner: View {
                 .stroke(MossTheme.apricot.opacity(0.24), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.10), radius: 14, y: 6)
+    }
+}
+
+private struct SidebarSectionRow: View {
+    let section: AppSection
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 11) {
+                Image(systemName: section.icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(isSelected ? MossTheme.sage : .secondary)
+                    .frame(width: 19)
+                Text(section.title)
+                    .font(MossTypography.font(13, weight: isSelected ? .semibold : .medium))
+                Spacer()
+                if isSelected {
+                    Circle()
+                        .fill(MossTheme.sage)
+                        .frame(width: 5, height: 5)
+                }
+            }
+            .foregroundStyle(isSelected ? .primary : .secondary)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 9)
+            .contentShape(Rectangle())
+            .background(
+                isSelected ? MossTheme.sage.opacity(0.12) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 10)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(
+                        isSelected ? MossTheme.sage.opacity(0.12) : Color.clear,
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

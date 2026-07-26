@@ -186,7 +186,7 @@ struct TodayView: View {
         guard analytics.totalFocus > 0 else {
             return "从第一段开始，让时间留下形状。"
         }
-        return "把今天的一小段，加入 \(analytics.totalFocus.chineseDuration) 里。"
+        return "把今天的一小段，加入 \(analytics.totalFocus.chineseDuration)里。"
     }
 
     private var statusTitle: String {

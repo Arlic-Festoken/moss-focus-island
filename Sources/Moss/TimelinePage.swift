@@ -119,14 +119,11 @@ struct TimelinePage: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("专注历史")
-                    .font(MossTypography.font(30, weight: .bold))
-                Text("按 title、分区和状态重走每一段专注轨迹。")
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
+        MossPageHeader(
+            eyebrow: "Focus Archive",
+            title: "专注历史",
+            subtitle: "按领域、项目和状态重走每一段已经兑现的时间。"
+        ) {
             Picker("时间范围", selection: Binding(get: { range }, set: { range = $0 })) {
                 ForEach(TimelineRange.allCases) { item in Text(item.rawValue).tag(item) }
             }
@@ -136,7 +133,7 @@ struct TimelinePage: View {
     }
 
     private var filterPanel: some View {
-        MossCard(padding: 14) {
+        MossCard(padding: 14, kind: .quiet) {
             VStack(spacing: 12) {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 10) { primaryFilters }
@@ -213,12 +210,44 @@ struct TimelinePage: View {
     }
 
     private func summaryStrip(_ snapshot: FocusAnalyticsSnapshot) -> some View {
-        HStack(spacing: 12) {
-            HistorySummaryTile("有效专注", snapshot.totalFocus.compactDuration, "timer", MossTheme.sage)
-            HistorySummaryTile("完成", "\(snapshot.completionCount) 段", "checkmark.circle.fill", MossTheme.mint)
-            HistorySummaryTile("放弃", "\(snapshot.abandonedCount) 段", "arrow.uturn.backward.circle", MossTheme.brick)
-            HistorySummaryTile("活跃", "\(snapshot.activeDays) 天", "calendar", TitleGroup.exploration.color)
+        MossCard(padding: 14, kind: .quiet) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 0) { historyMetrics(snapshot) }
+                LazyVGrid(
+                    columns: [GridItem(.flexible()), GridItem(.flexible())],
+                    spacing: 13
+                ) {
+                    historyMetrics(snapshot)
+                }
+            }
         }
+    }
+
+    @ViewBuilder
+    private func historyMetrics(_ snapshot: FocusAnalyticsSnapshot) -> some View {
+        MossMetric(
+            value: snapshot.totalFocus.compactDuration,
+            label: "有效专注",
+            symbol: "timer"
+        )
+        MossMetric(
+            value: "\(snapshot.completionCount) 段",
+            label: "完成",
+            symbol: "checkmark.circle.fill",
+            tint: MossTheme.mint
+        )
+        MossMetric(
+            value: "\(snapshot.abandonedCount) 段",
+            label: "中途结束",
+            symbol: "arrow.uturn.backward.circle",
+            tint: MossTheme.brick
+        )
+        MossMetric(
+            value: "\(snapshot.activeDays) 天",
+            label: "活跃",
+            symbol: "calendar",
+            tint: TitleGroup.exploration.color
+        )
     }
 
     private func historyChart(_ points: [HistoryChartPoint]) -> some View {
@@ -226,7 +255,7 @@ struct TimelinePage: View {
             VStack(alignment: .leading, spacing: 15) {
                 HStack {
                     Text(range == .week ? "一周波形" : "本月波形")
-                        .font(.title3.bold())
+                        .font(MossTypography.editorial(20, weight: .semibold))
                     Spacer()
                     Text(activeFilterDescription).font(.caption).foregroundStyle(.secondary)
                 }
@@ -276,7 +305,7 @@ struct TimelinePage: View {
 
     @ViewBuilder private func historyList(_ groups: [HistoryDayGroup]) -> some View {
         if groups.isEmpty {
-            MossCard {
+            MossCard(kind: .quiet) {
                 ContentUnavailableView(
                     "没有匹配的专注记录",
                     systemImage: "line.3.horizontal.decrease.circle",
@@ -339,35 +368,6 @@ struct TimelinePage: View {
     }
 }
 
-private struct HistorySummaryTile: View {
-    let title: String
-    let value: String
-    let icon: String
-    let tint: Color
-
-    init(_ title: String, _ value: String, _ icon: String, _ tint: Color) {
-        self.title = title
-        self.value = value
-        self.icon = icon
-        self.tint = tint
-    }
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .foregroundStyle(tint)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(value).font(MossTypography.font(15, weight: .bold)).monospacedDigit()
-                Text(title).font(.caption2).foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(13)
-        .frame(maxWidth: .infinity)
-        .background(MossTheme.card, in: RoundedRectangle(cornerRadius: 16))
-    }
-}
-
 private struct HistoryDayCard: View {
     let group: HistoryDayGroup
     let onSelectTitle: (String) -> Void
@@ -378,7 +378,7 @@ private struct HistoryDayCard: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(group.date.formatted(.dateTime.year().month().day().weekday(.wide)))
-                            .font(MossTypography.font(14, weight: .bold))
+                            .font(MossTypography.editorial(16, weight: .semibold))
                         Text("\(group.sessions.count) 条记录")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
@@ -393,7 +393,7 @@ private struct HistoryDayCard: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 14)
-                .background(MossTheme.sage.opacity(0.055))
+                .background(MossTheme.sage.opacity(0.045))
 
                 ForEach(Array(group.sessions.enumerated()), id: \.element.id) { index, session in
                     HistorySessionRow(session: session, onSelectTitle: onSelectTitle)

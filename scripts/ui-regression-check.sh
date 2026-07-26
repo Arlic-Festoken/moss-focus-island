@@ -121,5 +121,9 @@ expect "Sources/Moss/InsightsView.swift" 'Text("积累编年史")'
 expect "Sources/Moss/InsightsView.swift" 'Text("成长证据")'
 expect "Sources/Moss/InsightsView.swift" "analytics.recentMonths"
 expect "Sources/Moss/InsightsView.swift" "MonthlyChronicleCard"
+expect "Sources/Moss/MainView.swift" "SidebarSectionRow"
+reject "Sources/Moss/MainView.swift" "List(AppSection.allCases, selection: selection)"
+expect "Sources/Moss/TimelinePage.swift" "MossPageHeader("
+expect "Sources/Moss/TimelinePage.swift" "MossMetric("
 
 print "UI regression checks passed"
