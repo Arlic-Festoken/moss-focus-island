@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ArchiveView: View {
     @EnvironmentObject private var dataStore: DataStore
+    @State private var exportFeedback: String?
 
     private var archived: [FocusTask] {
         dataStore.tasks.filter(\.archived).sorted { $0.createdAt > $1.createdAt }
@@ -24,20 +25,10 @@ struct ArchiveView: View {
                     Spacer()
                     Menu("导出本地数据") {
                         Button("导出 JSON") {
-                            try? ExportService.export(
-                                projects: dataStore.projects,
-                                tasks: dataStore.tasks,
-                                sessions: dataStore.sessions,
-                                format: .json
-                            )
+                            exportData(.json)
                         }
                         Button("导出 CSV") {
-                            try? ExportService.export(
-                                projects: dataStore.projects,
-                                tasks: dataStore.tasks,
-                                sessions: dataStore.sessions,
-                                format: .csv
-                            )
+                            exportData(.csv)
                         }
                     }
                     .menuStyle(.borderlessButton)
@@ -99,6 +90,36 @@ struct ArchiveView: View {
             }
             .padding(28)
             .frame(maxWidth: 920, alignment: .leading)
+        }
+        .alert(
+            "本地导出",
+            isPresented: Binding(
+                get: { exportFeedback != nil },
+                set: { if !$0 { exportFeedback = nil } }
+            )
+        ) {
+            Button("知道了") { exportFeedback = nil }
+        } message: {
+            Text(exportFeedback ?? "")
+        }
+    }
+
+    private func exportData(_ format: ExportFormat) {
+        do {
+            let result = try ExportService.export(
+                projects: dataStore.projects,
+                tasks: dataStore.tasks,
+                sessions: dataStore.sessions,
+                interruptions: dataStore.interruptions,
+                reflections: dataStore.reflections,
+                snapshots: dataStore.snapshots,
+                format: format
+            )
+            if case let .saved(url) = result {
+                exportFeedback = "已保存到 \(url.path)"
+            }
+        } catch {
+            exportFeedback = "导出失败：\(error.localizedDescription)"
         }
     }
 }

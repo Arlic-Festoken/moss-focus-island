@@ -6,6 +6,11 @@ enum ExportFormat {
     case csv
 }
 
+enum ExportResult: Equatable {
+    case cancelled
+    case saved(URL)
+}
+
 struct ExportProject: Codable {
     var id: UUID
     var title: String
@@ -57,6 +62,9 @@ struct MossExport: Codable {
     var projects: [ExportProject]
     var tasks: [ExportTask]
     var sessions: [ExportSession]
+    var interruptions: [Interruption]
+    var reflections: [Reflection]
+    var snapshots: [DailySnapshot]
 }
 
 @MainActor
@@ -65,18 +73,30 @@ enum ExportService {
         projects: [FocusProject],
         tasks: [FocusTask],
         sessions: [FocusSession],
+        interruptions: [Interruption],
+        reflections: [Reflection],
+        snapshots: [DailySnapshot],
         format: ExportFormat
-    ) throws {
+    ) throws -> ExportResult {
         let panel = NSSavePanel()
         panel.canCreateDirectories = true
         panel.nameFieldStringValue = "Moss-\(Date.now.formatted(.iso8601.year().month().day())).\(format == .json ? "json" : "csv")"
         panel.allowedContentTypes = format == .json ? [.json] : [.commaSeparatedText]
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return .cancelled
+        }
 
         let data: Data
         switch format {
         case .json:
-            data = try jsonData(projects: projects, tasks: tasks, sessions: sessions)
+            data = try jsonData(
+                projects: projects,
+                tasks: tasks,
+                sessions: sessions,
+                interruptions: interruptions,
+                reflections: reflections,
+                snapshots: snapshots
+            )
         case .csv:
             let header = "id,task_id,task_title,project_id,project_title,category,started_at,ended_at,planned_seconds,focus_seconds,paused_seconds,warmup_seconds,timer_activity,mode,status,completion,distraction,note\n"
             let formatter = ISO8601DateFormatter()
@@ -105,12 +125,16 @@ enum ExportService {
             data = Data((header + rows + "\n").utf8)
         }
         try data.write(to: url, options: .atomic)
+        return .saved(url)
     }
 
     static func jsonData(
         projects: [FocusProject],
         tasks: [FocusTask],
-        sessions: [FocusSession]
+        sessions: [FocusSession],
+        interruptions: [Interruption] = [],
+        reflections: [Reflection] = [],
+        snapshots: [DailySnapshot] = []
     ) throws -> Data {
         let payload = MossExport(
             exportedAt: .now,
@@ -162,7 +186,10 @@ enum ExportService {
                         distractionSource: $0.distractionSourceRaw,
                         note: $0.note
                     )
-                }
+                },
+            interruptions: interruptions,
+            reflections: reflections,
+            snapshots: snapshots
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

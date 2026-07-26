@@ -14,6 +14,7 @@ struct SettingsView: View {
     @AppStorage("islandPlacement") private var islandPlacement = IslandPlacement.topCenter.rawValue
     @AppStorage("islandOffsetX") private var islandOffsetX = 0.0
     @AppStorage("islandOffsetY") private var islandOffsetY = 0.0
+    @State private var exportFeedback: String?
 
     var body: some View {
         ScrollView {
@@ -105,24 +106,34 @@ struct SettingsView: View {
                     }
                 }
                 Section("隐私与数据") {
+                    if let issue = dataStore.storageIssue {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Label(issue.title, systemImage: issue.kind == .recovered ? "checkmark.shield.fill" : "exclamationmark.triangle.fill")
+                                .font(.headline)
+                            Text(issue.message)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            HStack {
+                                if issue.canRestoreBackup {
+                                    Button("从备份恢复") {
+                                        dataStore.restoreBackup()
+                                    }
+                                }
+                                Button("关闭提示") {
+                                    dataStore.dismissStorageIssue()
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
                     LabeledContent("网络请求", value: "0")
                     LabeledContent("数据位置", value: "仅存储在这台 Mac")
                     HStack {
                         Button("导出 JSON") {
-                            try? ExportService.export(
-                                projects: dataStore.projects,
-                                tasks: dataStore.tasks,
-                                sessions: dataStore.sessions,
-                                format: .json
-                            )
+                            exportData(.json)
                         }
                         Button("导出 CSV") {
-                            try? ExportService.export(
-                                projects: dataStore.projects,
-                                tasks: dataStore.tasks,
-                                sessions: dataStore.sessions,
-                                format: .csv
-                            )
+                            exportData(.csv)
                         }
                     }
                 }
@@ -137,6 +148,36 @@ struct SettingsView: View {
             .frame(maxWidth: 720)
         }
         .background(MossTheme.paper)
+        .alert(
+            "本地导出",
+            isPresented: Binding(
+                get: { exportFeedback != nil },
+                set: { if !$0 { exportFeedback = nil } }
+            )
+        ) {
+            Button("知道了") { exportFeedback = nil }
+        } message: {
+            Text(exportFeedback ?? "")
+        }
+    }
+
+    private func exportData(_ format: ExportFormat) {
+        do {
+            let result = try ExportService.export(
+                projects: dataStore.projects,
+                tasks: dataStore.tasks,
+                sessions: dataStore.sessions,
+                interruptions: dataStore.interruptions,
+                reflections: dataStore.reflections,
+                snapshots: dataStore.snapshots,
+                format: format
+            )
+            if case let .saved(url) = result {
+                exportFeedback = "已保存到 \(url.path)"
+            }
+        } catch {
+            exportFeedback = "导出失败：\(error.localizedDescription)"
+        }
     }
 }
 
