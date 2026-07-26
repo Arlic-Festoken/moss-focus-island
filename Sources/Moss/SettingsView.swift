@@ -67,14 +67,14 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 9) {
                         HStack {
                             Text("水平微调")
-                            Slider(value: $islandOffsetX, in: -220...220, step: 2)
+                            Slider(value: $islandOffsetX, in: -2_000...2_000, step: 2)
                             Text("\(Int(islandOffsetX))")
                                 .font(.caption.monospacedDigit())
                                 .frame(width: 38, alignment: .trailing)
                         }
                         HStack {
                             Text("垂直微调")
-                            Slider(value: $islandOffsetY, in: -140...140, step: 2)
+                            Slider(value: $islandOffsetY, in: -1_200...1_200, step: 2)
                             Text("\(Int(islandOffsetY))")
                                 .font(.caption.monospacedDigit())
                                 .frame(width: 38, alignment: .trailing)

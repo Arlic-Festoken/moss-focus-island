@@ -90,7 +90,7 @@ struct FocusHeatmapView: View {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(title)
-                            .font(.title3.bold())
+                            .font(MossTypography.editorial(20, weight: .semibold))
                         Text(subtitle)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -119,7 +119,11 @@ struct FocusHeatmapView: View {
                     HeatmapStat(value: "\(model.longestStreak) 天", label: "最长连续")
                 }
                 .padding(.vertical, 12)
-                .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 15))
+                .background(MossTheme.quietFill, in: RoundedRectangle(cornerRadius: 15))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 15)
+                        .stroke(MossTheme.hairline.opacity(0.65), lineWidth: 1)
+                )
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 5) {

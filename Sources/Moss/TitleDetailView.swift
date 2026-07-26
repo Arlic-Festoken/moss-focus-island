@@ -78,15 +78,11 @@ struct TitleDetailView: View {
         let points = cumulativePoints
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        TitleIdentityLabel(profile: metric.profile)
-                        Text(metric.title)
-                            .font(MossTypography.font(30, weight: .bold))
-                        Text(metric.profile.narrative)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
+                MossPageHeader(
+                    eyebrow: metric.profile.group.title,
+                    title: metric.title,
+                    subtitle: metric.profile.narrative
+                ) {
                     Button("完成") { dismiss() }
                         .buttonStyle(CapsuleButtonStyle(tint: metric.profile.group.color))
                 }
@@ -96,7 +92,8 @@ struct TitleDetailView: View {
                 MossCard {
                     VStack(alignment: .leading, spacing: 15) {
                         HStack {
-                            Text("成长曲线").font(.title3.bold())
+                            Text("成长曲线")
+                                .font(MossTypography.editorial(20, weight: .semibold))
                             Spacer()
                             Text(metric.totalDuration.chineseDuration)
                                 .font(MossTypography.font(14, weight: .bold))
@@ -147,7 +144,8 @@ struct TitleDetailView: View {
                 MossCard {
                     VStack(alignment: .leading, spacing: 0) {
                         HStack {
-                            Text("完整记录").font(.title3.bold())
+                            Text("完整记录")
+                                .font(MossTypography.editorial(20, weight: .semibold))
                             Spacer()
                             Text("\(metric.sessions.count) 条")
                                 .font(.caption)

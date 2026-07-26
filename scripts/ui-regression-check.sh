@@ -90,7 +90,7 @@ expect "Sources/Moss/TimelinePage.swift" 'case all = "全部"'
 expect "Sources/Moss/TimelinePage.swift" 'TextField("搜索 title、项目或心得"'
 expect "Sources/Moss/TimelinePage.swift" "HistoryStatusFilter.allCases"
 expect "Sources/Moss/TimelinePage.swift" "SessionStatusBadge(status: session.status)"
-expect "Sources/Moss/InsightsView.swift" 'Text("专注岛拓荒")'
+expect "Sources/Moss/InsightsView.swift" 'title: "成长志"'
 expect "Sources/Moss/InsightsView.swift" "IslandMapCard(metrics: analytics.titleMetrics)"
 expect "Sources/Moss/TitleDetailView.swift" 'Text("成长曲线")'
 expect "Sources/Moss/FocusAnalytics.swift" "experienceToNextLevel"
@@ -116,5 +116,10 @@ expect "Sources/Moss/TodayView.swift" "加入"
 expect "Sources/Moss/TodayView.swift" "全部积累"
 expect "Sources/Moss/TodayView.swift" "当前领域"
 expect "Sources/Moss/TodayView.swift" "MossCard(kind: .hero"
+expect "Sources/Moss/InsightsView.swift" 'Text("你的投入，正在成为可以回望的作品。")'
+expect "Sources/Moss/InsightsView.swift" 'Text("积累编年史")'
+expect "Sources/Moss/InsightsView.swift" 'Text("成长证据")'
+expect "Sources/Moss/InsightsView.swift" "analytics.recentMonths"
+expect "Sources/Moss/InsightsView.swift" "MonthlyChronicleCard"
 
 print "UI regression checks passed"
