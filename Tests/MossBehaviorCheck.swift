@@ -298,6 +298,61 @@ struct MossBehaviorCheck {
         lifecycleTask.timerActivityRaw = TimerActivity.stopwatch.rawValue
         lifecycleStore.addTask(lifecycleTask)
 
+        let presentationProject = FocusProject(
+            id: UUID(),
+            title: "学业主线",
+            symbol: "graduationcap.fill",
+            sortOrder: 0
+        )
+        let laterProject = FocusProject(
+            id: UUID(),
+            title: "创造实践",
+            symbol: "hammer.fill",
+            sortOrder: 1
+        )
+        let presentationTasks = (0..<8).map {
+            FocusTask(
+                projectID: presentationProject.id,
+                title: "任务 \($0)",
+                category: presentationProject.title,
+                sortOrder: $0
+            )
+        } + [
+            FocusTask(
+                title: "未分类任务",
+                category: "未分类",
+                sortOrder: 9
+            )
+        ]
+        let presentationGroups = TodayTaskPresentation.groups(
+            projects: [laterProject, presentationProject],
+            tasks: presentationTasks
+        )
+        precondition(presentationGroups.map(\.id) == [
+            .project(presentationProject.id),
+            .ungrouped
+        ])
+        precondition(presentationGroups.last?.title == "未分类")
+        precondition(
+            TodayTaskPresentation.defaultExpandedGroupID(
+                groups: presentationGroups,
+                preferredTaskID: presentationTasks[3].id
+            ) == .project(presentationProject.id)
+        )
+        precondition(
+            TodayTaskPresentation.visibleTasks(
+                in: presentationGroups[0],
+                showingAll: false
+            ).count == 6
+        )
+        precondition(
+            TodayTaskPresentation.remainingCount(
+                in: presentationGroups[0],
+                showingAll: false
+            ) == 2
+        )
+        print("today-task-presentation=pass")
+
         var firstSortedTask = FocusTask(title: "Sorted first", category: "Tests", sortOrder: 0)
         firstSortedTask.warmupDuration = 0
         var recentlyUsedTask = FocusTask(title: "Recently used", category: "Tests", sortOrder: 99)
