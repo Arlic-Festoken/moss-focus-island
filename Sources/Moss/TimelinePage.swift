@@ -140,15 +140,20 @@ struct TimelinePage: View {
                     VStack(spacing: 10) { primaryFilters }
                 }
                 if range != .all {
-                    HStack {
-                        Button { moveSelection(-1) } label: { Image(systemName: "chevron.left") }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel("上一个时间段")
-                        DatePicker("选择日期", selection: $selectedDate, displayedComponents: .date)
-                            .labelsHidden()
-                        Button { moveSelection(1) } label: { Image(systemName: "chevron.right") }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel("下一个时间段")
+                    HStack(spacing: 8) {
+                        TimelineNavigationButton(
+                            systemName: "chevron.left",
+                            accessibilityLabel: "上一个时间段"
+                        ) {
+                            moveSelection(-1)
+                        }
+                        TimelineDateSelector(selection: $selectedDate)
+                        TimelineNavigationButton(
+                            systemName: "chevron.right",
+                            accessibilityLabel: "下一个时间段"
+                        ) {
+                            moveSelection(1)
+                        }
                         Text(periodTitle)
                             .font(MossTypography.font(12, weight: .semibold))
                             .foregroundStyle(.secondary)
@@ -182,31 +187,69 @@ struct TimelinePage: View {
         .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 10))
         .frame(minWidth: 210, maxWidth: .infinity)
 
-        Picker("分区", selection: $groupRaw) {
-            Text("全部分区").tag("")
+        TimelineFilterMenu(
+            title: TitleGroup(rawValue: groupRaw)?.title ?? "全部分区",
+            accessibilityLabel: "分区筛选，当前为 \(TitleGroup(rawValue: groupRaw)?.title ?? "全部分区")",
+            isActive: !groupRaw.isEmpty,
+            width: 132
+        ) {
+            Button {
+                groupRaw = ""
+            } label: {
+                Label("全部分区", systemImage: groupRaw.isEmpty ? "checkmark" : "square.grid.2x2")
+            }
             ForEach(TitleGroup.allCases) { group in
-                Label(group.title, systemImage: group.symbol).tag(group.rawValue)
+                Button {
+                    groupRaw = group.rawValue
+                } label: {
+                    Label(
+                        group.title,
+                        systemImage: groupRaw == group.rawValue ? "checkmark" : group.symbol
+                    )
+                }
             }
         }
-        .labelsHidden()
-        .frame(width: 132)
 
-        Picker("Title", selection: $titleFilter) {
-            Text("全部 title").tag("")
+        TimelineFilterMenu(
+            title: titleFilter.isEmpty ? "全部 title" : titleFilter,
+            accessibilityLabel: "Title 筛选，当前为 \(titleFilter.isEmpty ? "全部 title" : titleFilter)",
+            isActive: !titleFilter.isEmpty,
+            width: 132
+        ) {
+            Button {
+                titleFilter = ""
+            } label: {
+                Label("全部 title", systemImage: titleFilter.isEmpty ? "checkmark" : "text.quote")
+            }
             ForEach(analytics.titleMetrics) { metric in
-                Text(metric.title).tag(metric.title)
+                Button {
+                    titleFilter = metric.title
+                } label: {
+                    Label(
+                        metric.title,
+                        systemImage: titleFilter == metric.title ? "checkmark" : "text.quote"
+                    )
+                }
             }
         }
-        .labelsHidden()
-        .frame(width: 132)
 
-        Picker("状态", selection: $statusRaw) {
+        TimelineFilterMenu(
+            title: HistoryStatusFilter(rawValue: statusRaw)?.title ?? HistoryStatusFilter.all.title,
+            accessibilityLabel: "状态筛选，当前为 \(HistoryStatusFilter(rawValue: statusRaw)?.title ?? HistoryStatusFilter.all.title)",
+            isActive: statusRaw != HistoryStatusFilter.all.rawValue,
+            width: 118
+        ) {
             ForEach(HistoryStatusFilter.allCases) { status in
-                Text(status.title).tag(status.rawValue)
+                Button {
+                    statusRaw = status.rawValue
+                } label: {
+                    Label(
+                        status.title,
+                        systemImage: statusRaw == status.rawValue ? "checkmark" : "circle"
+                    )
+                }
             }
         }
-        .labelsHidden()
-        .frame(width: 118)
     }
 
     private func summaryStrip(_ snapshot: FocusAnalyticsSnapshot) -> some View {

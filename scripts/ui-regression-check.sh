@@ -90,6 +90,20 @@ expect "Sources/Moss/TimelinePage.swift" 'case all = "全部"'
 expect "Sources/Moss/TimelinePage.swift" 'TextField("搜索 title、项目或心得"'
 expect "Sources/Moss/TimelinePage.swift" "HistoryStatusFilter.allCases"
 expect "Sources/Moss/TimelinePage.swift" "SessionStatusBadge(status: session.status)"
+expect "Sources/Moss/TimelinePage.swift" "TimelineFilterMenu("
+expect "Sources/Moss/TimelinePage.swift" "TimelineDateSelector(selection:"
+expect "Sources/Moss/TimelinePage.swift" "TimelineNavigationButton("
+reject "Sources/Moss/TimelinePage.swift" 'Picker("分区"'
+reject "Sources/Moss/TimelinePage.swift" 'Picker("Title"'
+reject "Sources/Moss/TimelinePage.swift" 'Picker("状态"'
+reject "Sources/Moss/TimelinePage.swift" 'DatePicker("选择日期"'
+expect "Sources/Moss/TimelineFilterControls.swift" "struct TimelineFilterMenu"
+expect "Sources/Moss/TimelineFilterControls.swift" "struct TimelineDateSelector"
+expect "Sources/Moss/TimelineFilterControls.swift" "struct TimelineNavigationButton"
+expect "Sources/Moss/TimelineFilterControls.swift" ".menuIndicator(.hidden)"
+expect "Sources/Moss/TimelineFilterControls.swift" ".accessibilityLabel(accessibilityLabel)"
+expect "Sources/Moss/TimelineFilterControls.swift" "struct TimelineDownChevron"
+expect "Sources/Moss/TimelineFilterControls.swift" "StrokeStyle(lineWidth: 1.35"
 expect "Sources/Moss/InsightsView.swift" 'title: "成长志"'
 expect "Sources/Moss/InsightsView.swift" "IslandMapCard(metrics: analytics.titleMetrics)"
 expect "Sources/Moss/TitleDetailView.swift" 'Text("成长曲线")'
