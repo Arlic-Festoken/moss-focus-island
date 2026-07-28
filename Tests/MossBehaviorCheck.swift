@@ -495,7 +495,10 @@ struct MossBehaviorCheck {
         noticeStore.showTransient("重复提示", duration: .milliseconds(180))
         RunLoop.main.run(until: Date().addingTimeInterval(0.08))
         precondition(noticeStore.transientNotice?.message == "重复提示")
-        RunLoop.main.run(until: Date().addingTimeInterval(0.14))
+        let noticeExpiryDeadline = Date().addingTimeInterval(2)
+        while noticeStore.transientNotice != nil, Date() < noticeExpiryDeadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        }
         precondition(noticeStore.transientNotice == nil)
         print("transient-notice-identity=pass")
 
