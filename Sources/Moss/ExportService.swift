@@ -100,27 +100,8 @@ enum ExportService {
         case .csv:
             let header = "id,task_id,task_title,project_id,project_title,category,started_at,ended_at,planned_seconds,focus_seconds,paused_seconds,warmup_seconds,timer_activity,mode,status,completion,distraction,note\n"
             let formatter = ISO8601DateFormatter()
-            let rows = sessions.map { session in
-                [
-                    session.id.uuidString,
-                    session.taskID.uuidString,
-                    csv(session.taskTitle),
-                    session.projectID?.uuidString ?? "",
-                    csv(session.projectTitle),
-                    csv(session.category),
-                    formatter.string(from: session.startedAt),
-                    session.endedAt.map(formatter.string(from:)) ?? "",
-                    String(Int(session.plannedDuration)),
-                    String(Int(session.actualFocusDuration)),
-                    String(Int(session.pausedDuration)),
-                    String(Int(session.warmupDuration)),
-                    session.timerActivityRaw,
-                    session.modeRaw,
-                    session.statusRaw,
-                    session.completionStateRaw ?? "",
-                    session.distractionSourceRaw ?? "",
-                    csv(session.note)
-                ].joined(separator: ",")
+            let rows = sessions.map { session -> String in
+                csvRow(for: session, formatter: formatter)
             }.joined(separator: "\n")
             data = Data((header + rows + "\n").utf8)
         }
@@ -199,5 +180,32 @@ enum ExportService {
 
     private static func csv(_ value: String) -> String {
         "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
+    }
+
+    private static func csvRow(
+        for session: FocusSession,
+        formatter: ISO8601DateFormatter
+    ) -> String {
+        var columns: [String] = []
+        columns.reserveCapacity(18)
+        columns.append(session.id.uuidString)
+        columns.append(session.taskID.uuidString)
+        columns.append(csv(session.taskTitle))
+        columns.append(session.projectID?.uuidString ?? "")
+        columns.append(csv(session.projectTitle))
+        columns.append(csv(session.category))
+        columns.append(formatter.string(from: session.startedAt))
+        columns.append(session.endedAt.map(formatter.string(from:)) ?? "")
+        columns.append(String(Int(session.plannedDuration)))
+        columns.append(String(Int(session.actualFocusDuration)))
+        columns.append(String(Int(session.pausedDuration)))
+        columns.append(String(Int(session.warmupDuration)))
+        columns.append(session.timerActivityRaw)
+        columns.append(session.modeRaw)
+        columns.append(session.statusRaw)
+        columns.append(session.completionStateRaw ?? "")
+        columns.append(session.distractionSourceRaw ?? "")
+        columns.append(csv(session.note))
+        return columns.joined(separator: ",")
     }
 }
