@@ -3,10 +3,20 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 
+contains() {
+    local file="$1"
+    local needle="$2"
+    if command -v rg >/dev/null 2>&1; then
+        rg -q --fixed-strings "$needle" "$file"
+    else
+        grep -Fq -- "$needle" "$file"
+    fi
+}
+
 expect() {
     local file="$1"
     local needle="$2"
-    rg -q --fixed-strings "$needle" "$root/$file" || {
+    contains "$root/$file" "$needle" || {
         print -u2 "missing: $needle ($file)"
         exit 1
     }
@@ -15,7 +25,7 @@ expect() {
 reject() {
     local file="$1"
     local needle="$2"
-    ! rg -q --fixed-strings "$needle" "$root/$file" || {
+    ! contains "$root/$file" "$needle" || {
         print -u2 "unexpected: $needle ($file)"
         exit 1
     }
