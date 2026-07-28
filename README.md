@@ -117,3 +117,7 @@ rm -rf /Applications/Moss.app
 rm -rf "$HOME/Library/Application Support/Moss"
 defaults delete com.zhikanghuang.moss 2>/dev/null || true
 ```
+
+## 开源许可
+
+本项目采用 [MIT License](LICENSE) 开源。
