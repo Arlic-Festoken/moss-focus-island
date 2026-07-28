@@ -6,6 +6,9 @@ DATA="$HOME/Library/Application Support/Moss/moss-data.json"
 BACKUP="$(mktemp /tmp/moss-data-backup.XXXXXX)"
 EXECUTABLE="$(mktemp /tmp/moss-behavior-check.XXXXXX)"
 HAD_DATA=0
+SDK="${SDK:-$(xcrun --sdk macosx --show-sdk-path)}"
+SWIFTC="${SWIFTC:-$(xcrun --find swiftc)}"
+ARCH="${MOSS_NATIVE_ARCH:-$(uname -m)}"
 
 if [[ -f "$DATA" ]]; then
   cp "$DATA" "$BACKUP"
@@ -26,12 +29,12 @@ trap cleanup EXIT
 SOURCES=("$ROOT"/Sources/Moss/*.swift)
 SOURCES=(${SOURCES:#"$ROOT/Sources/Moss/MossApp.swift"})
 
-/Library/Developer/CommandLineTools/usr/bin/swiftc \
+"$SWIFTC" \
   -parse-as-library \
   "$ROOT/Tests/MossBehaviorCheck.swift" \
   "${SOURCES[@]}" \
-  -sdk /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk \
-  -target arm64-apple-macosx14.0 \
+  -sdk "$SDK" \
+  -target "$ARCH-apple-macosx14.0" \
   -framework SwiftUI \
   -framework AppKit \
   -framework Charts \

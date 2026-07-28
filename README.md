@@ -2,6 +2,19 @@
 
 一款本地优先、极低打扰的原生 Mac 学习记录工具。
 
+## 下载
+
+前往 [GitHub Releases](https://github.com/Arlic-Festoken/moss-focus-island/releases/latest)
+下载对应版本：
+
+- `.dmg`：打开后将 `Moss.app` 拖到“应用程序”；
+- `.zip`：解压后直接获得 `Moss.app`；
+- `SHA256SUMS.txt`：用于校验下载文件完整性。
+
+发布包是同时支持 Apple Silicon 与 Intel Mac 的通用版本，要求 macOS 14 或更高版本。
+当前发布包采用本地签名，尚未经过 Apple 公证；第一次打开时如被系统拦截，
+请在 Finder 中右键应用并选择“打开”。
+
 ## 已实现
 
 - 菜单栏一键开始上一次任务；
@@ -102,6 +115,17 @@ sudo xcodebuild -license accept
 ```
 
 这一步需要输入 Mac 管理员密码。
+
+## 发布新版本
+
+维护者在干净且已同步的 `main` 分支执行：
+
+```bash
+./scripts/release.sh 1.3.0
+```
+
+脚本会更新应用版本号、运行检查、提交版本、创建 `v1.3.0` 标签并推送。
+GitHub Actions 随后自动生成 `.dmg`、`.zip`、校验文件和版本说明。
 
 ## 卸载
 
