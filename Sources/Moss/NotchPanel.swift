@@ -87,7 +87,9 @@ final class NotchPanelController: ObservableObject {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                Task { @MainActor in self?.reposition(animated: false) }
+                Task { @MainActor [weak self] in
+                    self?.reposition(animated: false)
+                }
             }
         }
     }
