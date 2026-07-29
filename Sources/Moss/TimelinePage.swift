@@ -27,6 +27,7 @@ private struct HistoryChartPoint: Identifiable {
 }
 
 struct TimelinePage: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var dataStore: DataStore
     @State private var selectedDate = Date.now
     @State private var query = ""
@@ -34,8 +35,12 @@ struct TimelinePage: View {
     @State private var titleFilter = ""
     @State private var statusRaw = HistoryStatusFilter.all.rawValue
     @State private var selectedTitle: TitleMetric?
-    @State private var analytics = FocusAnalyticsSnapshot(sessions: [])
+    @State private var hoveredChartDate: Date?
     @AppStorage("timelineRange") private var rangeRaw = TimelineRange.all.rawValue
+
+    private var analytics: FocusAnalyticsSnapshot {
+        dataStore.analyticsSnapshot
+    }
 
     private var range: TimelineRange {
         get { TimelineRange(rawValue: rangeRaw) ?? .all }
@@ -86,7 +91,9 @@ struct TimelinePage: View {
 
     var body: some View {
         let visibleSessions = displayedSessions
-        let visibleAnalytics = FocusAnalyticsSnapshot(sessions: visibleSessions)
+        let visibleAnalytics = hasActiveFilter
+            ? FocusAnalyticsSnapshot(sessions: visibleSessions)
+            : analytics
         let visibleDayGroups = dayGroups(for: visibleSessions)
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
@@ -113,9 +120,14 @@ struct TimelinePage: View {
         .sheet(item: $selectedTitle) { metric in
             TitleDetailView(metric: metric)
         }
-        .onReceive(dataStore.$sessions) { sessions in
-            analytics = FocusAnalyticsSnapshot(sessions: sessions)
-        }
+    }
+
+    private var hasActiveFilter: Bool {
+        range != .all
+            || !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !groupRaw.isEmpty
+            || !titleFilter.isEmpty
+            || statusRaw != HistoryStatusFilter.all.rawValue
     }
 
     private var header: some View {
@@ -124,11 +136,9 @@ struct TimelinePage: View {
             title: "专注历史",
             subtitle: "按领域、项目和状态重走每一段已经兑现的时间。"
         ) {
-            Picker("时间范围", selection: Binding(get: { range }, set: { range = $0 })) {
-                ForEach(TimelineRange.allCases) { item in Text(item.rawValue).tag(item) }
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 310)
+            TimelineRangePicker(
+                selection: Binding(get: { range }, set: { range = $0 })
+            )
         }
     }
 
@@ -159,7 +169,8 @@ struct TimelinePage: View {
                             .foregroundStyle(.secondary)
                         Spacer()
                         Button("清除筛选") { clearFilters() }
-                            .buttonStyle(.plain)
+                            .buttonStyle(MossJellyPlainButtonStyle())
+                            .mossJellyHover(scale: 1.06, lift: 1, glow: 0.10)
                             .font(.caption)
                             .foregroundStyle(MossTheme.sage)
                     }
@@ -167,7 +178,8 @@ struct TimelinePage: View {
                     HStack {
                         Spacer()
                         Button("清除筛选") { clearFilters() }
-                            .buttonStyle(.plain)
+                            .buttonStyle(MossJellyPlainButtonStyle())
+                            .mossJellyHover(scale: 1.06, lift: 1, glow: 0.10)
                             .font(.caption)
                             .foregroundStyle(MossTheme.sage)
                     }
@@ -294,21 +306,62 @@ struct TimelinePage: View {
     }
 
     private func historyChart(_ points: [HistoryChartPoint]) -> some View {
-        MossCard {
+        let hoveredPoint = hoveredChartDate.flatMap { hoveredDate in
+            points.first { Calendar.current.isDate($0.date, inSameDayAs: hoveredDate) }
+        }
+
+        return MossCard {
             VStack(alignment: .leading, spacing: 15) {
                 HStack {
                     Text(range == .week ? "一周波形" : "本月波形")
                         .font(MossTypography.editorial(20, weight: .semibold))
                     Spacer()
-                    Text(activeFilterDescription).font(.caption).foregroundStyle(.secondary)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(
+                            hoveredPoint?.date.formatted(.dateTime.month().day().weekday(.abbreviated))
+                                ?? activeFilterDescription
+                        )
+                        .font(MossTypography.font(10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                        Text(hoveredPoint?.duration.compactDuration ?? " ")
+                            .font(MossTypography.font(13, weight: .bold))
+                            .foregroundStyle(MossTheme.sage)
+                            .monospacedDigit()
+                            .opacity(hoveredPoint == nil ? 0 : 1)
+                    }
+                    .frame(minWidth: 150, alignment: .trailing)
+                    .frame(height: 32, alignment: .topTrailing)
                 }
-                Chart(points) { point in
-                    BarMark(
-                        x: .value("日期", point.date, unit: .day),
-                        y: .value("分钟", point.duration / 60)
-                    )
-                    .foregroundStyle(MossTheme.sage.gradient)
-                    .cornerRadius(5)
+                Chart {
+                    ForEach(points) { point in
+                        let isHovered = hoveredPoint?.id == point.id
+                        let hasHoveredPoint = hoveredPoint != nil
+
+                        BarMark(
+                            x: .value("日期", point.date, unit: .day),
+                            y: .value("分钟", point.duration / 60),
+                            width: .fixed(15)
+                        )
+                        .foregroundStyle(
+                            isHovered
+                                ? AnyShapeStyle(MossTheme.sage.gradient)
+                                : AnyShapeStyle(MossTheme.sage.opacity(hasHoveredPoint ? 0.28 : 0.68))
+                        )
+                        .cornerRadius(5)
+                        .shadow(
+                            color: isHovered ? MossTheme.sage.opacity(0.38) : .clear,
+                            radius: isHovered ? 8 : 0,
+                            y: isHovered ? 3 : 0
+                        )
+                    }
+
+                    if let hoveredPoint {
+                        RuleMark(x: .value("悬停日期", hoveredPoint.date, unit: .day))
+                            .foregroundStyle(MossTheme.sage.opacity(0.22))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 4]))
+                    }
                 }
                 .chartXAxis {
                     AxisMarks(values: .automatic(desiredCount: range == .week ? 7 : 10)) {
@@ -325,7 +378,47 @@ struct TimelinePage: View {
                         }
                     }
                 }
+                .chartOverlay { proxy in
+                    GeometryReader { geometry in
+                        Rectangle()
+                            .fill(.clear)
+                            .contentShape(Rectangle())
+                            .onContinuousHover { phase in
+                                switch phase {
+                                case let .active(location):
+                                    guard let plotFrame = proxy.plotFrame else { return }
+                                    let frame = geometry[plotFrame]
+                                    guard frame.contains(location) else {
+                                        if hoveredChartDate != nil { hoveredChartDate = nil }
+                                        return
+                                    }
+                                    let plotX = location.x - frame.minX
+                                    let date: Date? = proxy.value(atX: plotX)
+                                    let hoveredPoint = date.flatMap { hoveredDate in
+                                        let hoveredDay = Calendar.current.startOfDay(for: hoveredDate)
+                                        return points.first {
+                                            Calendar.current.isDate($0.date, inSameDayAs: hoveredDay)
+                                        }
+                                    }
+                                    let nextDate = hoveredPoint?.duration ?? 0 > 0
+                                        ? hoveredPoint?.date
+                                        : nil
+                                    if hoveredChartDate != nextDate {
+                                        hoveredChartDate = nextDate
+                                    }
+                                case .ended:
+                                    if hoveredChartDate != nil { hoveredChartDate = nil }
+                                }
+                            }
+                    }
+                }
                 .frame(height: 210)
+                .animation(
+                    reduceMotion
+                        ? .linear(duration: 0.01)
+                        : .easeOut(duration: 0.10),
+                    value: hoveredChartDate
+                )
             }
         }
     }
@@ -474,7 +567,8 @@ private struct HistorySessionRow: View {
                     Text(session.taskTitle)
                         .font(MossTypography.font(14, weight: .semibold))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(MossJellyPlainButtonStyle())
+                .mossJellyHover(scale: 1.025, lift: 1, glow: 0.08)
                 .foregroundStyle(.primary)
                 HStack(spacing: 8) {
                     Text(profile.group.title)
@@ -492,6 +586,7 @@ private struct HistorySessionRow: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 11)
+        .mossJellyHover(scale: 1.012, lift: 1.5, glow: 0.08)
         .opacity(session.status == .abandoned ? 0.68 : 1)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(session.taskTitle)，\(session.actualFocusDuration.chineseDuration)，\(session.status == .abandoned ? "中途放弃" : "已完成")")

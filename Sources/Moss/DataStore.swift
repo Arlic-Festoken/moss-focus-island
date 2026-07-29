@@ -20,11 +20,16 @@ struct DataStoreIssue: Identifiable, Equatable {
 final class DataStore: ObservableObject {
     @Published private(set) var projects: [FocusProject] = []
     @Published private(set) var tasks: [FocusTask] = []
-    @Published private(set) var sessions: [FocusSession] = []
+    @Published private(set) var sessions: [FocusSession] = [] {
+        didSet {
+            analyticsSnapshot = FocusAnalyticsSnapshot(sessions: sessions)
+        }
+    }
     @Published private(set) var interruptions: [Interruption] = []
     @Published private(set) var reflections: [Reflection] = []
     @Published private(set) var snapshots: [DailySnapshot] = []
     @Published private(set) var storageIssue: DataStoreIssue?
+    private(set) var analyticsSnapshot = FocusAnalyticsSnapshot(sessions: [])
 
     var startableTasks: [FocusTask] {
         tasks.filter {
@@ -118,6 +123,7 @@ final class DataStore: ObservableObject {
     func archiveProject(id: UUID, archived: Bool) {
         guard let index = projects.firstIndex(where: { $0.id == id }) else { return }
         projects[index].archived = archived
+        projects[index].archivedAt = archived ? .now : nil
         save()
     }
 
@@ -171,15 +177,18 @@ final class DataStore: ObservableObject {
     func archiveTask(id: UUID, archived: Bool) {
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return }
         tasks[index].archived = archived
+        tasks[index].archivedAt = archived ? .now : nil
         save()
     }
 
     func restoreTask(id: UUID) {
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return }
         tasks[index].archived = false
+        tasks[index].archivedAt = nil
         if let projectID = tasks[index].projectID,
            let projectIndex = projects.firstIndex(where: { $0.id == projectID }) {
             projects[projectIndex].archived = false
+            projects[projectIndex].archivedAt = nil
         }
         save()
     }

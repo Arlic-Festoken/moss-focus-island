@@ -56,6 +56,9 @@ struct ArchiveView: View {
                                         Text("项目 · \(dataStore.totalFocus(forProjectID: project.id).compactDuration)")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
+                                        Text(archiveDateText(project.archivedAt))
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
                                     }
                                     Spacer()
                                     Button("恢复项目") {
@@ -64,6 +67,7 @@ struct ArchiveView: View {
                                     .buttonStyle(CapsuleButtonStyle())
                                 }
                                 .padding(.vertical, 11)
+                                .mossJellyHover(scale: 1.012, lift: 1.5, glow: 0.08)
                                 Divider()
                             }
                             ForEach(archived) { task in
@@ -74,6 +78,9 @@ struct ArchiveView: View {
                                         Text("\(task.category) · \(dataStore.totalFocus(for: task.id).compactDuration) · 完成 \(task.completedSessions) 段")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
+                                        Text(archiveDateText(task.archivedAt))
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
                                     }
                                     Spacer()
                                     Button("恢复") {
@@ -82,6 +89,7 @@ struct ArchiveView: View {
                                     .buttonStyle(CapsuleButtonStyle())
                                 }
                                 .padding(.vertical, 11)
+                                .mossJellyHover(scale: 1.012, lift: 1.5, glow: 0.08)
                                 if task.id != archived.last?.id { Divider() }
                             }
                         }
@@ -121,5 +129,10 @@ struct ArchiveView: View {
         } catch {
             exportFeedback = "导出失败：\(error.localizedDescription)"
         }
+    }
+
+    private func archiveDateText(_ date: Date?) -> String {
+        guard let date else { return "已封存 · 旧记录未保存归档日期" }
+        return "封存于 \(date.formatted(.dateTime.year().month().day()))"
     }
 }

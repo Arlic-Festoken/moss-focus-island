@@ -73,6 +73,7 @@ private struct FocusHeatmapModel {
 }
 
 struct FocusHeatmapView: View {
+    @Environment(\.colorScheme) private var colorScheme
     let sessions: [FocusSession]
     var title = "年度专注图"
     var subtitle = "每一格是一天，专注越久，颜色越深。"
@@ -219,9 +220,20 @@ struct FocusHeatmapView: View {
     }
 
     private func color(for level: Int) -> Color {
-        guard level > 0 else { return Color.primary.opacity(0.055) }
-        let opacity = [0.0, 0.22, 0.40, 0.58, 0.78, 1.0][min(5, level)]
-        return MossTheme.sage.opacity(opacity)
+        switch min(5, max(0, level)) {
+        case 0:
+            Color.primary.opacity(colorScheme == .dark ? 0.065 : 0.045)
+        case 1:
+            MossTheme.sage.opacity(colorScheme == .dark ? 0.38 : 0.30)
+        case 2:
+            MossTheme.sage.opacity(colorScheme == .dark ? 0.62 : 0.48)
+        case 3:
+            MossTheme.mint.opacity(colorScheme == .dark ? 0.70 : 0.60)
+        case 4:
+            MossTheme.mint.opacity(colorScheme == .dark ? 0.88 : 0.78)
+        default:
+            MossTheme.mint
+        }
     }
 
     private func dayTooltip(_ day: HeatmapDay) -> String {

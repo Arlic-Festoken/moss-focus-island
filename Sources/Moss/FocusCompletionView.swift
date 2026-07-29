@@ -2,6 +2,11 @@ import SwiftUI
 
 struct FocusCompletionView: View {
     let receipt: FocusCompletionReceipt
+    @AppStorage("growthTheme") private var growthThemeRaw = GrowthTheme.douluo.rawValue
+
+    private var growthTheme: GrowthTheme {
+        GrowthTheme(rawValue: growthThemeRaw) ?? .douluo
+    }
 
     var body: some View {
         MossCard(padding: 17, kind: .hero) {
@@ -10,11 +15,11 @@ struct FocusCompletionView: View {
                     Image(systemName: "checkmark.seal.fill")
                         .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(MossTheme.mint)
-                    Text("这一段已经落地")
+                    Text(growthTheme == .douluo ? "本次修炼已经完成" : "这一段已经落地")
                         .font(MossTypography.font(11, weight: .semibold))
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Text("\(receipt.completionCount) 段")
+                    Text("\(receipt.completionCount) \(growthTheme == .douluo ? "次" : "段")")
                         .font(MossTypography.font(10, weight: .bold))
                         .foregroundStyle(MossTheme.sage)
                 }
@@ -29,7 +34,7 @@ struct FocusCompletionView: View {
                         value: receipt.taskTotal.compactDuration
                     )
                     receiptRow(
-                        label: "全部积累",
+                        label: growthTheme == .douluo ? "总修炼" : "全部积累",
                         value: receipt.overallTotal.compactDuration
                     )
                 }
@@ -37,22 +42,27 @@ struct FocusCompletionView: View {
                 Divider().opacity(0.6)
 
                 if let achievement = receipt.unlockedAchievement {
+                    let presentation = growthTheme.achievementPresentation(for: achievement)
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("新里程碑 · \(achievement.title)")
+                            Text(
+                                "\(growthTheme == .douluo ? "新功勋" : "新里程碑")"
+                                    + " · \(presentation.title)"
+                            )
                                 .font(MossTypography.font(12, weight: .bold))
-                            Text(achievement.subtitle)
+                            Text(presentation.subtitle)
                                 .font(MossTypography.font(10))
                                 .foregroundStyle(.secondary)
                         }
                     } icon: {
-                        Image(systemName: achievement.symbol)
+                        Image(systemName: presentation.symbol)
                             .foregroundStyle(MossTheme.apricot)
                     }
                 } else if let next = receipt.nextAchievement {
+                    let presentation = growthTheme.achievementPresentation(for: next)
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
-                            Text("下一里程碑 · \(next.title)")
+                            Text("\(growthTheme.nextMilestonePrefix) · \(presentation.title)")
                             Spacer()
                             Text("\(Int((next.progress * 100).rounded()))%")
                         }
@@ -83,14 +93,16 @@ struct FocusCompletionView: View {
 
     private var accessibilitySummary: String {
         var parts = [
-            "本段专注 \(receipt.focusedDuration.chineseDuration)",
+            "\(growthTheme == .douluo ? "本次修炼" : "本段专注") \(receipt.focusedDuration.chineseDuration)",
             "\(receipt.taskTitle) 累计 \(receipt.taskTotal.chineseDuration)",
-            "全部累计 \(receipt.overallTotal.chineseDuration)"
+            "\(growthTheme == .douluo ? "总修炼" : "全部累计") \(receipt.overallTotal.chineseDuration)"
         ]
         if let achievement = receipt.unlockedAchievement {
-            parts.append("解锁 \(achievement.title)")
+            let presentation = growthTheme.achievementPresentation(for: achievement)
+            parts.append("解锁 \(presentation.title)")
         } else if let next = receipt.nextAchievement {
-            parts.append("下一里程碑 \(next.title)")
+            let presentation = growthTheme.achievementPresentation(for: next)
+            parts.append("\(growthTheme.nextMilestonePrefix) \(presentation.title)")
         }
         return parts.joined(separator: "，")
     }

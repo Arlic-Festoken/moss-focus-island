@@ -49,6 +49,7 @@ struct MossApp: App {
                 .task {
                     store.configure(with: dataStore)
                     NotchPanelController.shared.show(store: store)
+                    DesktopWidgetPanelController.shared.show(store: store, dataStore: dataStore)
                 }
         }
         .defaultSize(width: 1120, height: 760)

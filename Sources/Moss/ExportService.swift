@@ -16,6 +16,7 @@ struct ExportProject: Codable {
     var title: String
     var symbol: String
     var archived: Bool
+    var archivedAt: Date?
     var createdAt: Date
     var sortOrder: Int
 }
@@ -28,6 +29,7 @@ struct ExportTask: Codable {
     var estimatedSessions: Int
     var completedSessions: Int
     var archived: Bool
+    var archivedAt: Date?
     var createdAt: Date
     var timerActivity: String
     var focusDuration: TimeInterval
@@ -125,6 +127,7 @@ enum ExportService {
                     title: $0.title,
                     symbol: $0.symbol,
                     archived: $0.archived,
+                    archivedAt: $0.archivedAt,
                     createdAt: $0.createdAt,
                     sortOrder: $0.sortOrder
                 )
@@ -138,6 +141,7 @@ enum ExportService {
                         estimatedSessions: $0.estimatedSessions,
                         completedSessions: $0.completedSessions,
                         archived: $0.archived,
+                        archivedAt: $0.archivedAt,
                         createdAt: $0.createdAt,
                         timerActivity: $0.timerActivityRaw,
                         focusDuration: $0.focusDuration,

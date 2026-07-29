@@ -44,7 +44,7 @@ struct TaskEditorView: View {
                     }
                     Spacer()
                     Button("取消") { dismiss() }
-                        .buttonStyle(.plain)
+                        .buttonStyle(MossJellyPlainButtonStyle())
                 }
 
                 editorField("任务名") {
@@ -106,7 +106,7 @@ struct TaskEditorView: View {
                                                 : Color.primary.opacity(0.06))
                                 )
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(MossJellyPlainButtonStyle())
                             .accessibilityLabel(activity.title)
                             .accessibilityValue(timerActivity == activity ? "已选择" : "未选择")
                             .accessibilityAddTraits(timerActivity == activity ? .isSelected : [])

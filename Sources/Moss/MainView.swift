@@ -4,6 +4,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     case today = "今天"
     case timeline = "时间线"
     case insights = "洞察"
+    case companion = "桌宠"
     case archive = "归档"
     case settings = "设置"
 
@@ -21,6 +22,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .today: "sun.max"
         case .timeline: "waveform.path.ecg"
         case .insights: "book.closed.fill"
+        case .companion: "person.crop.circle.fill"
         case .archive: "archivebox"
         case .settings: "slider.horizontal.3"
         }
@@ -33,19 +35,37 @@ struct MainView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("selectedSection") private var selectedSectionRaw = AppSection.today.rawValue
+    @AppStorage("backgroundImageEnabled") private var backgroundImageEnabled = false
+    @AppStorage("backgroundImageFileName") private var backgroundImageFileName = ""
+    @AppStorage("growthTheme") private var growthThemeRaw = GrowthTheme.douluo.rawValue
     @State private var isAddingTask = false
     @State private var isAddingProject = false
+    @State private var selectedSection: AppSection?
+    @State private var detailSection: AppSection?
+    @State private var hoveredSection: AppSection?
+    @Namespace private var sidebarMotion
 
-    private var selection: Binding<AppSection?> {
-        Binding(
-            get: { AppSection(rawValue: selectedSectionRaw) ?? .today },
-            set: { selectedSectionRaw = ($0 ?? .today).rawValue }
-        )
+    private var sidebarSection: AppSection {
+        selectedSection
+            ?? AppSection(rawValue: selectedSectionRaw)
+            ?? .today
+    }
+
+    private var visibleSection: AppSection {
+        detailSection ?? sidebarSection
+    }
+
+    private var usesCustomBackground: Bool {
+        backgroundImageEnabled
+            && BackgroundImageStore.imageURL(fileName: backgroundImageFileName) != nil
     }
 
     var body: some View {
-        NavigationSplitView {
-            VStack(spacing: 0) {
+        ZStack {
+            MossWindowBackground()
+
+            NavigationSplitView {
+                VStack(spacing: 0) {
                 HStack(spacing: 10) {
                     Image(systemName: "leaf.fill")
                         .font(.system(size: 15, weight: .bold))
@@ -70,9 +90,18 @@ struct MainView: View {
                         ForEach(AppSection.allCases) { section in
                             SidebarSectionRow(
                                 section: section,
-                                isSelected: selection.wrappedValue == section
+                                displayTitle: section == .insights
+                                    ? (GrowthTheme(rawValue: growthThemeRaw) ?? .douluo).journalTitle
+                                    : section.title,
+                                isSelected: sidebarSection == section,
+                                isHovered: hoveredSection == section,
+                                motionNamespace: sidebarMotion,
+                                reduceMotion: reduceMotion,
+                                onHoverChange: { isHovering in
+                                    updateHover(section, isHovering: isHovering)
+                                }
                             ) {
-                                selection.wrappedValue = section
+                                navigate(to: section)
                             }
                         }
                     }
@@ -83,25 +112,27 @@ struct MainView: View {
 
                 SidebarFocusStatus()
                     .padding(14)
-            }
-            .background(.ultraThinMaterial)
-            .navigationSplitViewColumnWidth(min: 185, ideal: 208, max: 240)
-        } detail: {
-            Group {
-                switch selection.wrappedValue ?? .today {
-                case .today:
-                    TodayView {
-                        selectedSectionRaw = AppSection.timeline.rawValue
-                    }
-                case .timeline: TimelinePage()
-                case .insights: InsightsView()
-                case .archive: ArchiveView()
-                case .settings: SettingsView()
                 }
+                .background(.ultraThinMaterial)
+                .navigationSplitViewColumnWidth(min: 185, ideal: 208, max: 240)
+            } detail: {
+                Group {
+                    switch visibleSection {
+                    case .today:
+                        TodayView {
+                            navigate(to: .timeline)
+                        }
+                    case .timeline: TimelinePage()
+                    case .insights: InsightsView()
+                    case .companion: ThemeCompanionPage()
+                    case .archive: ArchiveView()
+                    case .settings: SettingsView()
+                    }
+                }
+                .background(MossTheme.paper.opacity(usesCustomBackground ? 0.70 : 1))
             }
-            .background(MossTheme.paper)
+            .background(Color.clear)
         }
-        .background(MossTheme.paper)
         .tint(MossTheme.sage)
         .background(WindowConfigurator())
         .frame(minWidth: 900, minHeight: 620)
@@ -179,6 +210,39 @@ struct MainView: View {
             reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.42, dampingFraction: 0.86),
             value: store.completionReceipt?.id
         )
+    }
+
+    private func navigate(to section: AppSection) {
+        guard section != sidebarSection else { return }
+
+        withAnimation(
+            reduceMotion
+                ? .linear(duration: 0.01)
+                : .spring(response: 0.34, dampingFraction: 0.68, blendDuration: 0.08)
+        ) {
+            selectedSection = section
+        }
+
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            detailSection = section
+            selectedSectionRaw = section.rawValue
+        }
+    }
+
+    private func updateHover(_ section: AppSection, isHovering: Bool) {
+        withAnimation(
+            reduceMotion
+                ? .linear(duration: 0.01)
+                : .spring(response: 0.30, dampingFraction: 0.72, blendDuration: 0.06)
+        ) {
+            if isHovering {
+                hoveredSection = section
+            } else if hoveredSection == section {
+                hoveredSection = nil
+            }
+        }
     }
 
     @ViewBuilder
@@ -262,7 +326,7 @@ private struct StorageIssueBanner: View {
             } label: {
                 Image(systemName: "xmark")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(MossJellyPlainButtonStyle())
             .accessibilityLabel("暂时关闭数据提示")
         }
         .padding(.horizontal, 14)
@@ -279,7 +343,12 @@ private struct StorageIssueBanner: View {
 
 private struct SidebarSectionRow: View {
     let section: AppSection
+    let displayTitle: String
     let isSelected: Bool
+    let isHovered: Bool
+    let motionNamespace: Namespace.ID
+    let reduceMotion: Bool
+    let onHoverChange: (Bool) -> Void
     let action: () -> Void
 
     var body: some View {
@@ -287,35 +356,93 @@ private struct SidebarSectionRow: View {
             HStack(spacing: 11) {
                 Image(systemName: section.icon)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(isSelected ? MossTheme.sage : .secondary)
-                    .frame(width: 19)
-                Text(section.title)
+                    .foregroundStyle(isSelected || isHovered ? MossTheme.sage : .secondary)
+                    .frame(width: 25, height: 25)
+                    .background(
+                        MossTheme.sage.opacity(isSelected ? 0.16 : isHovered ? 0.10 : 0),
+                        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    )
+                    .scaleEffect(isSelected ? 1.05 : isHovered ? 1.12 : 1)
+                    .rotationEffect(.degrees(isHovered && !reduceMotion ? -2.5 : 0))
+                Text(displayTitle)
                     .font(MossTypography.font(13, weight: isSelected ? .semibold : .medium))
                 Spacer()
                 if isSelected {
                     Circle()
                         .fill(MossTheme.sage)
-                        .frame(width: 5, height: 5)
+                        .frame(width: 7, height: 7)
+                        .shadow(color: MossTheme.sage.opacity(0.55), radius: 5)
+                        .transition(.scale(scale: 0.25).combined(with: .opacity))
+                } else if isHovered {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(MossTheme.sage.opacity(0.78))
+                        .transition(.move(edge: .leading).combined(with: .opacity))
                 }
             }
-            .foregroundStyle(isSelected ? .primary : .secondary)
-            .padding(.horizontal, 11)
-            .padding(.vertical, 9)
-            .contentShape(Rectangle())
-            .background(
-                isSelected ? MossTheme.sage.opacity(0.12) : Color.clear,
-                in: RoundedRectangle(cornerRadius: 10)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(
-                        isSelected ? MossTheme.sage.opacity(0.12) : Color.clear,
-                        lineWidth: 1
-                    )
-            )
+            .foregroundStyle(isSelected || isHovered ? Color.primary : Color.secondary)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 7)
+            .offset(x: isHovered && !reduceMotion ? 3 : 0)
+            .background { animatedBackground }
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(JellySidebarButtonStyle(reduceMotion: reduceMotion))
+        .onHover(perform: onHoverChange)
+        .animation(
+            reduceMotion
+                ? .linear(duration: 0.01)
+                : .spring(response: 0.32, dampingFraction: 0.62, blendDuration: 0.08),
+            value: isHovered
+        )
+        .animation(
+            reduceMotion
+                ? .linear(duration: 0.01)
+                : .spring(response: 0.36, dampingFraction: 0.66, blendDuration: 0.08),
+            value: isSelected
+        )
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    @ViewBuilder
+    private var animatedBackground: some View {
+        if isSelected {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(MossTheme.sage.opacity(0.18))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(MossTheme.sage.opacity(0.24), lineWidth: 1)
+                )
+                .shadow(color: MossTheme.sage.opacity(0.12), radius: 10, y: 4)
+                .matchedGeometryEffect(id: "sidebar-selection", in: motionNamespace)
+        } else if isHovered {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(MossTheme.sage.opacity(0.095))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(MossTheme.sage.opacity(0.14), lineWidth: 1)
+                )
+                .matchedGeometryEffect(id: "sidebar-hover", in: motionNamespace)
+        } else {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.clear)
+        }
+    }
+}
+
+private struct JellySidebarButtonStyle: ButtonStyle {
+    let reduceMotion: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.965 : 1)
+            .brightness(configuration.isPressed ? 0.035 : 0)
+            .animation(
+                reduceMotion
+                    ? .linear(duration: 0.01)
+                    : .spring(response: 0.22, dampingFraction: 0.52, blendDuration: 0.06),
+                value: configuration.isPressed
+            )
     }
 }
 
@@ -324,7 +451,7 @@ private struct SidebarFocusStatus: View {
     @EnvironmentObject private var dataStore: DataStore
 
     var body: some View {
-        let analytics = FocusAnalyticsSnapshot(sessions: dataStore.sessions)
+        let analytics = dataStore.analyticsSnapshot
         VStack(alignment: .leading, spacing: 10) {
             if store.phase == .idle {
                 HStack {

@@ -31,7 +31,7 @@ struct ProjectEditorView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button("取消") { dismiss() }.buttonStyle(.plain)
+                Button("取消") { dismiss() }.buttonStyle(MossJellyPlainButtonStyle())
             }
 
             TextField("项目名称", text: $title)
@@ -51,7 +51,7 @@ struct ProjectEditorView: View {
                                 in: RoundedRectangle(cornerRadius: 12)
                             )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(MossJellyPlainButtonStyle())
                 }
             }
 

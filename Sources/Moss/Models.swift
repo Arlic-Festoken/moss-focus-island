@@ -152,6 +152,7 @@ struct FocusProject: Identifiable, Codable, Hashable {
     var title: String
     var symbol: String
     var archived: Bool
+    var archivedAt: Date?
     var createdAt: Date
     var sortOrder: Int
 
@@ -160,6 +161,7 @@ struct FocusProject: Identifiable, Codable, Hashable {
         title: String,
         symbol: String = "folder.fill",
         archived: Bool = false,
+        archivedAt: Date? = nil,
         createdAt: Date = .now,
         sortOrder: Int = 0
     ) {
@@ -167,6 +169,7 @@ struct FocusProject: Identifiable, Codable, Hashable {
         self.title = title
         self.symbol = symbol
         self.archived = archived
+        self.archivedAt = archivedAt
         self.createdAt = createdAt
         self.sortOrder = sortOrder
     }
@@ -180,6 +183,7 @@ struct FocusTask: Identifiable, Codable, Hashable {
     var estimatedSessions: Int
     var completedSessions: Int
     var archived: Bool
+    var archivedAt: Date?
     var createdAt: Date
     var sortOrder: Int
     var timerActivityRaw: String
@@ -196,6 +200,7 @@ struct FocusTask: Identifiable, Codable, Hashable {
         estimatedSessions: Int = 1,
         completedSessions: Int = 0,
         archived: Bool = false,
+        archivedAt: Date? = nil,
         createdAt: Date = .now,
         sortOrder: Int = 0,
         timerActivity: TimerActivity = .pomodoro,
@@ -211,6 +216,7 @@ struct FocusTask: Identifiable, Codable, Hashable {
         self.estimatedSessions = estimatedSessions
         self.completedSessions = completedSessions
         self.archived = archived
+        self.archivedAt = archivedAt
         self.createdAt = createdAt
         self.sortOrder = sortOrder
         self.timerActivityRaw = timerActivity.rawValue
@@ -226,7 +232,7 @@ struct FocusTask: Identifiable, Codable, Hashable {
 
     private enum CodingKeys: String, CodingKey {
         case id, projectID, title, category, estimatedSessions, completedSessions
-        case archived, createdAt, sortOrder, timerActivityRaw, focusDuration
+        case archived, archivedAt, createdAt, sortOrder, timerActivityRaw, focusDuration
         case breakDuration, warmupDuration, discardThreshold
     }
 
@@ -239,6 +245,7 @@ struct FocusTask: Identifiable, Codable, Hashable {
         estimatedSessions = try values.decodeIfPresent(Int.self, forKey: .estimatedSessions) ?? 1
         completedSessions = try values.decodeIfPresent(Int.self, forKey: .completedSessions) ?? 0
         archived = try values.decodeIfPresent(Bool.self, forKey: .archived) ?? false
+        archivedAt = try values.decodeIfPresent(Date.self, forKey: .archivedAt)
         createdAt = try values.decodeIfPresent(Date.self, forKey: .createdAt) ?? .now
         sortOrder = try values.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
         timerActivityRaw = try values.decodeIfPresent(String.self, forKey: .timerActivityRaw)

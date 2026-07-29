@@ -5,53 +5,69 @@ enum IslandPanelPresentation: Equatable {
     case idle
     case compact
     case expanded
+    case launcher
 }
 
 struct IslandScreenGeometry: Equatable {
     var frame: CGRect
     var visibleFrame: CGRect
     var safeAreaTop: CGFloat
+    var notchWidth: CGFloat = 0
     var displayID: String?
 
     var hasNotch: Bool {
-        safeAreaTop > 0
+        safeAreaTop > 0 || notchWidth > 0
+    }
+
+    var notchGapWidth: CGFloat {
+        max(IslandPanelGeometry.minimumNotchGapWidth, notchWidth + 16)
     }
 }
 
 enum IslandPanelGeometry {
-    static let panelHeight: CGFloat = 74
     static let cornerMargin: CGFloat = 10
+    static let minimumNotchGapWidth: CGFloat = 118
+    private static let compactLobesWidth: CGFloat = 402
 
     static func size(
         for presentation: IslandPanelPresentation,
         hasNotch: Bool,
-        placement: IslandPlacement
+        placement: IslandPlacement,
+        notchGapWidth: CGFloat = minimumNotchGapWidth
     ) -> CGSize {
-        let width: CGFloat
         switch presentation {
         case .idle:
-            width = 190
+            return CGSize(width: 530, height: 86)
         case .compact:
-            width = hasNotch && placement == .topCenter ? 520 : 390
+            let width = hasNotch && placement == .topCenter
+                ? compactLobesWidth + max(minimumNotchGapWidth, notchGapWidth)
+                : 390
+            return CGSize(width: width, height: 74)
         case .expanded:
-            width = hasNotch && placement == .topCenter ? 520 : 500
+            return CGSize(width: 560, height: 120)
+        case .launcher:
+            return CGSize(width: 530, height: 250)
         }
-        return CGSize(width: width, height: panelHeight)
     }
 
     static func anchorOrigin(
         placement: IslandPlacement,
         screen: IslandScreenGeometry,
-        size: CGSize
+        size: CGSize,
+        avoidsNotch: Bool = false
     ) -> CGPoint {
-        let hasNotch = screen.hasNotch && placement == .topCenter
-        let bounds = placement == .topCenter ? screen.frame : screen.visibleFrame
+        let integratesWithNotch = screen.hasNotch
+            && placement == .topCenter
+            && !avoidsNotch
+        let bounds = placement == .topCenter && !avoidsNotch
+            ? screen.frame
+            : screen.visibleFrame
 
         switch placement {
         case .topCenter:
             return CGPoint(
                 x: screen.frame.midX - size.width / 2,
-                y: screen.frame.maxY - size.height - (hasNotch ? 1 : 7)
+                y: bounds.maxY - size.height - (integratesWithNotch ? 1 : 7)
             )
         case .topLeading:
             return CGPoint(
@@ -80,22 +96,41 @@ enum IslandPanelGeometry {
         placement: IslandPlacement,
         screen: IslandScreenGeometry,
         size: CGSize,
-        offset: CGSize
+        offset: CGSize,
+        avoidsNotch: Bool = false
     ) -> CGRect {
-        let anchor = anchorOrigin(placement: placement, screen: screen, size: size)
+        let anchor = anchorOrigin(
+            placement: placement,
+            screen: screen,
+            size: size,
+            avoidsNotch: avoidsNotch
+        )
         let proposed = CGRect(
             origin: CGPoint(x: anchor.x + offset.width, y: anchor.y + offset.height),
             size: size
         )
-        return clamped(proposed, to: movementBounds(for: placement, screen: screen))
+        return clamped(
+            proposed,
+            to: movementBounds(
+                for: placement,
+                screen: screen,
+                avoidsNotch: avoidsNotch
+            )
+        )
     }
 
     static func offset(
         for frame: CGRect,
         placement: IslandPlacement,
-        screen: IslandScreenGeometry
+        screen: IslandScreenGeometry,
+        avoidsNotch: Bool = false
     ) -> CGSize {
-        let anchor = anchorOrigin(placement: placement, screen: screen, size: frame.size)
+        let anchor = anchorOrigin(
+            placement: placement,
+            screen: screen,
+            size: frame.size,
+            avoidsNotch: avoidsNotch
+        )
         return CGSize(width: frame.minX - anchor.x, height: frame.minY - anchor.y)
     }
 
@@ -110,9 +145,12 @@ enum IslandPanelGeometry {
 
     static func movementBounds(
         for placement: IslandPlacement,
-        screen: IslandScreenGeometry
+        screen: IslandScreenGeometry,
+        avoidsNotch: Bool = false
     ) -> CGRect {
-        placement == .topCenter ? screen.frame : screen.visibleFrame
+        placement == .topCenter && !avoidsNotch
+            ? screen.frame
+            : screen.visibleFrame
     }
 }
 

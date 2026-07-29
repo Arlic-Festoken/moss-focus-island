@@ -215,6 +215,7 @@ struct MossCard<Content: View>: View {
         case .hero: MossTheme.sage.opacity(0.18)
         }
     }
+
 }
 
 struct MossPageHeader<Trailing: View>: View {
@@ -292,6 +293,7 @@ struct MossMetric: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .mossJellyHover(scale: 1.025, lift: 2, glow: 0.10)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(label)，\(value)")
     }
@@ -301,6 +303,7 @@ struct CapsuleButtonStyle: ButtonStyle {
     var tint: Color = MossTheme.sage
     var prominent = false
     var prominentForeground: Color?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -312,14 +315,75 @@ struct CapsuleButtonStyle: ButtonStyle {
                 Capsule()
                     .fill(prominent ? tint : tint.opacity(configuration.isPressed ? 0.18 : 0.11))
             )
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.955 : 1)
+            .brightness(configuration.isPressed ? 0.04 : 0)
+            .mossJellyHover(scale: 1.045, lift: 2, glow: 0.16)
+            .animation(
+                reduceMotion
+                    ? .linear(duration: 0.01)
+                    : .spring(response: 0.23, dampingFraction: 0.52, blendDuration: 0.06),
+                value: configuration.isPressed
+            )
     }
 }
 
 extension View {
+    func mossJellyHover(
+        scale: CGFloat = 1.018,
+        lift: CGFloat = 2,
+        glow: Double = 0.10
+    ) -> some View {
+        modifier(MossJellyHoverModifier(scale: scale, lift: lift, glow: glow))
+    }
+
     func mossMonospacedDigits() -> some View {
         fontDesign(.rounded).monospacedDigit()
+    }
+}
+
+struct MossJellyPlainButtonStyle: ButtonStyle {
+    var pressedScale: CGFloat = 0.96
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? pressedScale : 1)
+            .brightness(configuration.isPressed ? 0.04 : 0)
+            .animation(
+                reduceMotion
+                    ? .linear(duration: 0.01)
+                    : .spring(response: 0.22, dampingFraction: 0.50, blendDuration: 0.06),
+                value: configuration.isPressed
+            )
+    }
+}
+
+private struct MossJellyHoverModifier: ViewModifier {
+    let scale: CGFloat
+    let lift: CGFloat
+    let glow: Double
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isHovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(isHovered && !reduceMotion ? scale : 1)
+            .offset(y: isHovered && !reduceMotion ? -lift : 0)
+            .shadow(
+                color: isHovered ? MossTheme.sage.opacity(glow) : .clear,
+                radius: isHovered ? 10 : 0,
+                y: isHovered ? 4 : 0
+            )
+            .onHover { hovering in
+                withAnimation(
+                    reduceMotion
+                        ? .linear(duration: 0.01)
+                        : .spring(response: 0.30, dampingFraction: 0.62, blendDuration: 0.07)
+                ) {
+                    isHovered = hovering
+                }
+            }
     }
 }
 

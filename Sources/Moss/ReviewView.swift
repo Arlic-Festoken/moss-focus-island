@@ -59,7 +59,7 @@ struct ReviewView: View {
                         withAnimation(.easeInOut(duration: 0.18)) { step -= 1 }
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(MossJellyPlainButtonStyle())
                 .foregroundStyle(.secondary)
                 .keyboardShortcut(.cancelAction)
                 Spacer()
@@ -104,7 +104,7 @@ struct ReviewView: View {
                                 .fill(selection.wrappedValue == value ? MossTheme.sage : MossTheme.sage.opacity(0.09))
                         )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(MossJellyPlainButtonStyle())
             }
         }
     }

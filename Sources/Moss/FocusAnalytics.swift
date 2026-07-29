@@ -233,6 +233,7 @@ struct FocusAnalyticsSnapshot {
     let peakMonth: FocusMonthRecord?
     let longestSession: FocusSession?
     let titleMetrics: [TitleMetric]
+    let cultivation: FocusCultivationRank
     let experience: Int
     let level: Int
     let levelProgress: Double
@@ -306,7 +307,7 @@ struct FocusAnalyticsSnapshot {
         }
 
         let xp = Int(total / 60)
-        let progressXP = xp % 300
+        let cultivation = FocusCultivationRank(totalDuration: total)
         self.totalFocus = total
         currentYearFocus = currentYearSessions.reduce(0) { $0 + $1.actualFocusDuration }
         currentYearActiveDays = Set(
@@ -327,10 +328,11 @@ struct FocusAnalyticsSnapshot {
         peakMonth = monthRecords.max { $0.duration < $1.duration }
         longestSession = completed.max { $0.actualFocusDuration < $1.actualFocusDuration }
         self.titleMetrics = titleMetrics
+        self.cultivation = cultivation
         experience = xp
-        level = xp / 300 + 1
-        levelProgress = Double(progressXP) / 300
-        experienceToNextLevel = 300 - progressXP
+        level = cultivation.level
+        levelProgress = cultivation.levelProgress
+        experienceToNextLevel = Int(ceil(cultivation.durationToNextLevel / 60))
         let builtAchievements = Self.buildAchievements(
             completed: completed,
             dailyRecords: dailyRecords,

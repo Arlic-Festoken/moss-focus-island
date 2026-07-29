@@ -3,7 +3,12 @@ import SwiftUI
 struct TodayView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var dataStore: DataStore
+    @AppStorage("growthTheme") private var growthThemeRaw = GrowthTheme.douluo.rawValue
     var onOpenTimeline: () -> Void = {}
+
+    private var growthTheme: GrowthTheme {
+        GrowthTheme(rawValue: growthThemeRaw) ?? .douluo
+    }
 
     private var metrics: DailyMetrics {
         InsightEngine.todayMetrics(
@@ -17,7 +22,7 @@ struct TodayView: View {
     }
 
     private var analytics: FocusAnalyticsSnapshot {
-        FocusAnalyticsSnapshot(sessions: dataStore.sessions)
+        dataStore.analyticsSnapshot
     }
 
     private var currentTaskTotal: TimeInterval {
@@ -49,31 +54,21 @@ struct TodayView: View {
     private var statusCard: some View {
         MossCard(kind: .hero) {
             VStack(alignment: .leading, spacing: 20) {
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .center, spacing: 30) {
-                        heroPrimaryContent
-                        Spacer(minLength: 20)
-                        heroActionContent
-                    }
-                    VStack(alignment: .leading, spacing: 20) {
-                        heroPrimaryContent
-                        heroActionContent
-                    }
-                }
+                heroStatusContent
 
                 Divider().opacity(0.55)
 
                 HStack(spacing: 0) {
                     MossMetric(
                         value: metrics.totalFocus.compactDuration,
-                        label: "今日投入",
+                        label: growthTheme == .douluo ? "今日修炼" : "今日投入",
                         symbol: "sun.max.fill",
                         tint: MossTheme.apricot
                     )
                     Divider().frame(height: 34)
                     MossMetric(
                         value: analytics.totalFocus.compactDuration,
-                        label: "全部积累",
+                        label: growthTheme == .douluo ? "总修炼" : "全部积累",
                         symbol: "leaf.fill"
                     )
                     Divider().frame(height: 34)
@@ -82,6 +77,30 @@ struct TodayView: View {
                         label: "留下痕迹",
                         symbol: "calendar"
                     )
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var heroStatusContent: some View {
+        if isShowingCurrentSession {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 30) {
+                    heroPrimaryContent
+                    Spacer(minLength: 20)
+                    heroActionContent
+                }
+                VStack(alignment: .leading, spacing: 20) {
+                    heroPrimaryContent
+                    heroActionContent
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 18) {
+                heroPrimaryContent
+                if let next = dataStore.preferredStartTask {
+                    idleQuickStart(task: next)
                 }
             }
         }
@@ -120,8 +139,16 @@ struct TodayView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Text(
                     metrics.completedCount > 0
-                        ? "今天已经完成 \(metrics.completedCount) 段，下一段会继续长在这份积累上。"
-                        : "今天还没有开始，但过去的投入没有归零。"
+                        ? (
+                            growthTheme == .douluo
+                                ? "今天已经完成 \(metrics.completedCount) 次修炼，下一次会继续凝聚魂力。"
+                                : "今天已经完成 \(metrics.completedCount) 段，下一段会继续长在这份积累上。"
+                        )
+                        : (
+                            growthTheme == .douluo
+                                ? "今天还没有开始修炼，但过去凝聚的魂力不会归零。"
+                                : "今天还没有开始，但过去的投入没有归零。"
+                        )
                 )
                 .font(MossTypography.font(13))
                 .foregroundStyle(.secondary)
@@ -151,44 +178,91 @@ struct TodayView: View {
                     .foregroundStyle(store.phase == .breakTime ? MossTheme.apricot : MossTheme.sage)
                 }
             }
-        } else if let next = dataStore.preferredStartTask {
-            VStack(alignment: .trailing, spacing: 11) {
-                VStack(alignment: .trailing, spacing: 3) {
-                    Text("继续 \(next.title)")
-                        .font(MossTypography.font(15, weight: .bold))
-                    Text(next.timerActivity.title)
-                        .font(MossTypography.font(10))
-                        .foregroundStyle(.secondary)
-                }
-                HStack(spacing: 8) {
-                    Button("先做 5 分钟") {
-                        store.start(task: next, mode: .ignition)
-                    }
-                    .buttonStyle(CapsuleButtonStyle(tint: MossTheme.apricot))
-                    Button("开始下一段") {
-                        store.start(task: next)
-                    }
-                    .buttonStyle(CapsuleButtonStyle(prominent: true))
-                }
+        }
+    }
+
+    private func idleQuickStart(task: FocusTask) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 16) {
+                quickStartIdentity(task: task)
+                Spacer(minLength: 24)
+                quickStartButtons(task: task)
             }
+            VStack(alignment: .leading, spacing: 13) {
+                quickStartIdentity(task: task)
+                quickStartButtons(task: task)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(
+            MossTheme.sage.opacity(0.065),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(MossTheme.sage.opacity(0.14), lineWidth: 1)
+        }
+    }
+
+    private func quickStartIdentity(task: FocusTask) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "arrow.forward.circle.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(MossTheme.sage)
+                .frame(width: 38, height: 38)
+                .background(
+                    MossTheme.sage.opacity(0.11),
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                )
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(growthTheme == .douluo ? "接着修炼 \(task.title)" : "接着做 \(task.title)")
+                    .font(MossTypography.font(14, weight: .bold))
+                Text(
+                    growthTheme == .douluo
+                        ? "\(task.timerActivity.title) · 从熟悉的领域开始修炼"
+                        : "\(task.timerActivity.title) · 从熟悉的任务开始"
+                )
+                    .font(MossTypography.font(10))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func quickStartButtons(task: FocusTask) -> some View {
+        HStack(spacing: 8) {
+            Button("先做 5 分钟") {
+                store.start(task: task, mode: .ignition)
+            }
+            .buttonStyle(CapsuleButtonStyle(tint: MossTheme.apricot))
+
+            Button(growthTheme == .douluo ? "开始修炼" : "开始专注") {
+                store.start(task: task)
+            }
+            .buttonStyle(CapsuleButtonStyle(prominent: true))
         }
     }
 
     private var idleHeroTitle: String {
         guard analytics.totalFocus > 0 else {
-            return "从第一段开始，让时间留下形状。"
+            return growthTheme == .douluo
+                ? "从第一次修炼开始，凝聚属于你的魂力。"
+                : "从第一段开始，让时间留下形状。"
         }
-        return "把今天的一小段，加入 \(analytics.totalFocus.chineseDuration)里。"
+        return growthTheme == .douluo
+            ? "把今天的一次修炼，炼成新的魂力。"
+            : "把今天的一小段，续进你的长期积累。"
     }
 
     private var statusTitle: String {
         switch store.phase {
-        case .preparing: "正在进入状态"
-        case .focusing: "此刻正在专注"
-        case .paused: "专注已暂停"
+        case .preparing: growthTheme == .douluo ? "正在进入修炼状态" : "正在进入状态"
+        case .focusing: growthTheme == .douluo ? "此刻正在修炼" : "此刻正在专注"
+        case .paused: growthTheme == .douluo ? "修炼已暂停" : "专注已暂停"
         case .breakTime: "休息中"
-        case .awaitingReview: "等待记录这一段"
-        case .idle: "今天已经专注"
+        case .awaitingReview: growthTheme == .douluo ? "等待记录本次修炼" : "等待记录这一段"
+        case .idle: growthTheme == .douluo ? "今天已经修炼" : "今天已经专注"
         }
     }
 
@@ -385,7 +459,8 @@ private struct TodayTimelineCard: View {
                         .font(MossTypography.editorial(20, weight: .semibold))
                     Spacer()
                     Button("查看全部", action: onOpenTimeline)
-                        .buttonStyle(.plain)
+                        .buttonStyle(MossJellyPlainButtonStyle())
+                        .mossJellyHover(scale: 1.018, lift: 1.5, glow: 0.08)
                     .font(.caption)
                 }
                 if today.isEmpty {

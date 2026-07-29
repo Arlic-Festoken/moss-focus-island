@@ -212,7 +212,8 @@ private struct ProjectTaskSection: View {
                         .padding(.vertical, 9)
                         .background(MossTheme.sage.opacity(0.055), in: RoundedRectangle(cornerRadius: 10))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(MossJellyPlainButtonStyle())
+                    .mossJellyHover(scale: 1.018, lift: 1, glow: 0.08)
                     .padding(.horizontal, 12)
                     .padding(.bottom, 12)
                 }
@@ -274,7 +275,8 @@ private struct ProjectTaskSection: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(MossJellyPlainButtonStyle())
+            .mossJellyHover(scale: 1.018, lift: 1, glow: 0.08)
 
             Button {
                 isAddingTask = true
@@ -282,7 +284,8 @@ private struct ProjectTaskSection: View {
                 Image(systemName: "plus")
                     .frame(width: 22, height: 22)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(MossJellyPlainButtonStyle(pressedScale: 0.90))
+            .mossJellyHover(scale: 1.10, lift: 2, glow: 0.14)
             .accessibilityLabel("在\(group.title)中添加任务")
 
             if let project = group.project {
@@ -369,6 +372,7 @@ private struct CompactTaskTile: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(MossTheme.hairline, lineWidth: 1)
         }
+        .mossJellyHover(scale: 1.022, lift: 2.5, glow: 0.14)
         .contentShape(RoundedRectangle(cornerRadius: 12))
         .help(task.title)
         .sheet(isPresented: $isEditing) {
@@ -427,7 +431,7 @@ private struct CompactTaskTile: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(MossJellyPlainButtonStyle())
         .accessibilityLabel(
             "\(task.title)，已专注 \(totalFocus.chineseDuration)，完成 \(task.completedSessions) 段"
         )
@@ -497,7 +501,8 @@ private struct CompactTaskTile: View {
                 .frame(width: 28, height: 28)
                 .background(MossTheme.sage, in: Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(MossJellyPlainButtonStyle(pressedScale: 0.88))
+        .mossJellyHover(scale: 1.10, lift: 2, glow: 0.16)
         .disabled(!canStart)
         .accessibilityLabel("开始 \(task.title)")
     }

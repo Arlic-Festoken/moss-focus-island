@@ -4,6 +4,8 @@ struct MenuBarView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var dataStore: DataStore
     @Environment(\.openWindow) private var openWindow
+    @ObservedObject private var panelController = NotchPanelController.shared
+    @ObservedObject private var desktopWidgetController = DesktopWidgetPanelController.shared
 
     private var activeTasks: [FocusTask] {
         dataStore.startableTasks
@@ -37,14 +39,34 @@ struct MenuBarView: View {
                 } label: {
                     Label("打开 Moss", systemImage: "rectangle.on.rectangle")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(MossJellyPlainButtonStyle())
                 Spacer()
+                Button {
+                    desktopWidgetController.setVisible(
+                        !desktopWidgetController.isVisible,
+                        store: store,
+                        dataStore: dataStore
+                    )
+                } label: {
+                    Image(systemName: desktopWidgetController.isVisible ? "square.grid.2x2.fill" : "square.grid.2x2")
+                }
+                .buttonStyle(MossJellyPlainButtonStyle())
+                .help(desktopWidgetController.isVisible ? "隐藏桌面小组件" : "显示桌面小组件")
+                .accessibilityLabel(desktopWidgetController.isVisible ? "隐藏桌面小组件" : "显示桌面小组件")
+                Button {
+                    panelController.setVisible(!panelController.isVisible, store: store)
+                } label: {
+                    Image(systemName: panelController.isVisible ? "eye.slash" : "eye")
+                }
+                .buttonStyle(MossJellyPlainButtonStyle())
+                .help(panelController.isVisible ? "隐藏专注岛" : "显示专注岛")
+                .accessibilityLabel(panelController.isVisible ? "隐藏专注岛" : "显示专注岛")
                 Button {
                     NSApplication.shared.terminate(nil)
                 } label: {
                     Image(systemName: "power")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(MossJellyPlainButtonStyle())
                 .help("退出 Moss")
             }
             .font(MossTypography.font(12, weight: .medium))
@@ -102,7 +124,7 @@ struct MenuBarView: View {
                     }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(MossJellyPlainButtonStyle())
 
                 HStack(spacing: 8) {
                     Button("先做 5 分钟") {

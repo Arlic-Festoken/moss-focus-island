@@ -72,6 +72,17 @@ struct MossBehaviorCheck {
         precondition(analyticsFixture.activeDays == 7)
         precondition(analyticsFixture.currentStreak == 7)
         precondition(analyticsFixture.longestStreak == 7)
+        let firstAchievement = analyticsFixture.achievements.first {
+            $0.id == "first"
+        }!
+        precondition(
+            GrowthTheme.douluo.achievementPresentation(for: firstAchievement).title
+                == "初次冥想"
+        )
+        precondition(
+            GrowthTheme.moss.achievementPresentation(for: firstAchievement).title
+                == "第一块苔藓"
+        )
         precondition(TitleProfile.resolve("漫游").group == .exploration)
         precondition(TitleMastery.resolve(duration: 2 * 3_600) == .sprout)
         let completedExploration = HistoryFilter(group: .exploration, status: .completed)
@@ -85,8 +96,183 @@ struct MossBehaviorCheck {
             status: .completed
         )
         let importedScaleAnalytics = FocusAnalyticsSnapshot(sessions: [importedScale], calendar: calendar)
-        precondition(importedScaleAnalytics.level == 39)
-        precondition(importedScaleAnalytics.experienceToNextLevel == 273)
+        precondition(importedScaleAnalytics.level == 27)
+        precondition(importedScaleAnalytics.cultivation.realm == .grandSoulMaster)
+        precondition(importedScaleAnalytics.cultivation.soulRingYears == 19_045)
+        precondition(importedScaleAnalytics.experienceToNextLevel > 0)
+        let avatarSnapshot = ThemeAvatarSnapshot(analytics: importedScaleAnalytics)
+        precondition(avatarSnapshot.soulRings.count == 1)
+        precondition(avatarSnapshot.soulRings[0].rank.soulRingYears == 19_045)
+        precondition(avatarSnapshot.martialSouls.count == 1)
+        precondition(avatarSnapshot.combatPower > 0)
+        precondition(avatarSnapshot.soulRingCapacity == 2)
+        precondition(avatarSnapshot.equippedSoulRings.count == 1)
+
+        let ringSessions = [
+            fixtureSession(
+                title: "领域甲",
+                date: importedScale.startedAt,
+                duration: 100 * 3_600,
+                status: .completed
+            ),
+            fixtureSession(
+                title: "领域乙",
+                date: importedScale.startedAt.addingTimeInterval(1),
+                duration: 60 * 3_600,
+                status: .completed
+            ),
+            fixtureSession(
+                title: "领域丙",
+                date: importedScale.startedAt.addingTimeInterval(2),
+                duration: 30 * 3_600,
+                status: .completed
+            )
+        ]
+        let ringTasks = ringSessions.map {
+            FocusTask(id: $0.taskID, title: $0.taskTitle, category: "修炼")
+        }
+        let ringAnalytics = FocusAnalyticsSnapshot(sessions: ringSessions, calendar: calendar)
+        let ringAvatar = ThemeAvatarSnapshot(
+            analytics: ringAnalytics,
+            tasks: ringTasks,
+            sessions: ringSessions
+        )
+        precondition(ringAvatar.rank.realm == .grandSoulMaster)
+        precondition(ringAvatar.soulRingCapacity == 2)
+        precondition(ringAvatar.equippedSoulRings.map(\.title) == ["领域甲", "领域乙"])
+        precondition(ringAvatar.unequippedSoulRingCandidates.map(\.title) == ["领域丙"])
+
+        let academicProject = FocusProject(title: "学业主线")
+        let readingProject = FocusProject(title: "阅读探索")
+        let makingProject = FocusProject(title: "创造实践")
+        let synergySessions = [
+            fixtureSession(
+                title: "高数",
+                date: importedScale.startedAt,
+                duration: 100 * 3_600,
+                status: .completed
+            ),
+            fixtureSession(
+                title: "阅读训练",
+                date: importedScale.startedAt.addingTimeInterval(1),
+                duration: 20 * 3_600,
+                status: .completed
+            ),
+            fixtureSession(
+                title: "开发",
+                date: importedScale.startedAt.addingTimeInterval(2),
+                duration: 10 * 3_600,
+                status: .completed
+            )
+        ]
+        let synergyTasks = [
+            FocusTask(
+                id: synergySessions[0].taskID,
+                projectID: academicProject.id,
+                title: "高数",
+                category: academicProject.title
+            ),
+            FocusTask(
+                id: synergySessions[1].taskID,
+                projectID: readingProject.id,
+                title: "阅读训练",
+                category: readingProject.title
+            ),
+            FocusTask(
+                id: synergySessions[2].taskID,
+                projectID: makingProject.id,
+                title: "开发",
+                category: makingProject.title
+            )
+        ]
+        let synergyAnalytics = FocusAnalyticsSnapshot(
+            sessions: synergySessions,
+            calendar: calendar
+        )
+        let synergyAvatar = ThemeAvatarSnapshot(
+            analytics: synergyAnalytics,
+            projects: [academicProject, readingProject, makingProject],
+            tasks: synergyTasks,
+            sessions: synergySessions
+        )
+        precondition(synergyAvatar.synergyPower > 0)
+        precondition(
+            Set(synergyAvatar.trainingRecommendations.map(\.route))
+                == Set([.mecha, .soulSpirit, .synergy])
+        )
+        precondition(
+            synergyAvatar.trainingRecommendations.allSatisfy {
+                $0.expectedPowerGain > 0
+            }
+        )
+        precondition(synergyAvatar.organizationNodes.count == 5)
+        precondition(
+            synergyAvatar.organizationNodes.first {
+                $0.kind == .academy
+            }?.isUnlocked == true
+        )
+        precondition(
+            synergyAvatar.organizationNodes.first {
+                $0.kind == .spiritPagoda
+            }?.isUnlocked == true
+        )
+        precondition(
+            synergyAvatar.organizationNodes.first {
+                $0.kind == .warGodHall
+            }?.isUnlocked == false
+        )
+        precondition(synergyAvatar.organizationPower == 4_000)
+        precondition(synergyAvatar.currentAffiliation == "传灵塔")
+
+        let archivedLearningProject = FocusProject(
+            title: "计组",
+            archived: true,
+            archivedAt: importedScale.startedAt
+        )
+        let archivedLearningTask = FocusTask(
+            id: importedScale.taskID,
+            projectID: archivedLearningProject.id,
+            title: importedScale.taskTitle,
+            category: archivedLearningProject.title
+        )
+        let archiveAwareAvatar = ThemeAvatarSnapshot(
+            analytics: importedScaleAnalytics,
+            projects: [archivedLearningProject],
+            tasks: [archivedLearningTask],
+            sessions: [importedScale]
+        )
+        precondition(archiveAwareAvatar.activeSoulSpirits.isEmpty)
+        precondition(archiveAwareAvatar.archivedSoulSpirits.map(\.title) == ["计组"])
+        precondition(archiveAwareAvatar.activeSoulRings.isEmpty)
+        precondition(archiveAwareAvatar.archivedSoulRings.map(\.title) == ["课业"])
+
+        let hundredThousandYearRank = FocusCultivationRank(totalDuration: 1_000 * 3_600)
+        precondition(hundredThousandYearRank.soulRingTier == .hundredThousandYear)
+        let titledThreshold = FocusCultivationRank.hoursRequired(for: 90)
+        precondition(
+            FocusCultivationRank(totalDuration: titledThreshold * 3_600).realm
+                == .titledDouluo
+        )
+        let masteryRank = FocusCultivationRank(totalDuration: 10_000 * 3_600)
+        precondition(masteryRank.level == 99)
+        precondition(masteryRank.realm == .limitDouluo)
+        precondition(masteryRank.soulRingTier == .millionYear)
+        precondition(masteryRank.soulRingYears == 1_000_000)
+        let masteryAvatar = ThemeAvatarSnapshot(
+            analytics: FocusAnalyticsSnapshot(sessions: [
+                fixtureSession(
+                    title: "万时修炼",
+                    date: importedScale.startedAt,
+                    duration: 10_000 * 3_600,
+                    status: .completed
+                )
+            ], calendar: calendar)
+        )
+        precondition(
+            masteryAvatar.organizationNodes.first {
+                $0.kind == .continent
+            }?.isUnlocked == true
+        )
 
         let crossYear = [
             fixtureSession(
@@ -110,28 +296,38 @@ struct MossBehaviorCheck {
             frame: CGRect(x: 0, y: 0, width: 1_440, height: 900),
             visibleFrame: CGRect(x: 0, y: 24, width: 1_440, height: 852),
             safeAreaTop: 32,
+            notchWidth: 179,
             displayID: "primary"
         )
         for placement in IslandPlacement.allCases {
             for presentation in [
                 IslandPanelPresentation.idle,
                 .compact,
-                .expanded
+                .expanded,
+                .launcher
             ] {
+                let integratesWithNotch = placement == .topCenter
+                    && presentation == .compact
+                let avoidsNotch = placement == .topCenter
+                    && primaryScreen.hasNotch
+                    && !integratesWithNotch
                 let size = IslandPanelGeometry.size(
                     for: presentation,
-                    hasNotch: primaryScreen.hasNotch,
-                    placement: placement
+                    hasNotch: integratesWithNotch,
+                    placement: placement,
+                    notchGapWidth: primaryScreen.notchGapWidth
                 )
                 let frame = IslandPanelGeometry.frame(
                     placement: placement,
                     screen: primaryScreen,
                     size: size,
-                    offset: .zero
+                    offset: .zero,
+                    avoidsNotch: avoidsNotch
                 )
                 let bounds = IslandPanelGeometry.movementBounds(
                     for: placement,
-                    screen: primaryScreen
+                    screen: primaryScreen,
+                    avoidsNotch: avoidsNotch
                 )
                 precondition(frame.minX >= bounds.minX)
                 precondition(frame.minY >= bounds.minY)
@@ -139,6 +335,32 @@ struct MossBehaviorCheck {
                 precondition(frame.maxY <= bounds.maxY)
                 if presentation == .expanded {
                     precondition(size.width >= 470, "Expanded island content must not clip")
+                }
+                if presentation == .launcher {
+                    precondition(size.width >= 510, "Task launcher content must not clip")
+                    precondition(size.height >= 232, "Task launcher controls must not clip")
+                }
+                if presentation == .idle {
+                    precondition(
+                        size.width == IslandPanelGeometry.size(
+                            for: .launcher,
+                            hasNotch: false,
+                            placement: placement
+                        ).width,
+                        "Idle and task launcher widths must remain stable"
+                    )
+                }
+                if integratesWithNotch {
+                    precondition(
+                        size.width >= 402 + primaryScreen.notchWidth + 16,
+                        "Compact island must clear the physical notch width"
+                    )
+                }
+                if avoidsNotch {
+                    precondition(
+                        frame.maxY <= primaryScreen.visibleFrame.maxY,
+                        "Idle and expanded islands must sit below the notch"
+                    )
                 }
             }
         }
@@ -273,8 +495,10 @@ struct MossBehaviorCheck {
 
         dataStore.archiveTask(id: task.id, archived: true)
         precondition(dataStore.tasks.first(where: { $0.id == task.id })?.archived == true)
+        precondition(dataStore.tasks.first(where: { $0.id == task.id })?.archivedAt != nil)
         dataStore.archiveTask(id: task.id, archived: false)
         precondition(dataStore.tasks.first(where: { $0.id == task.id })?.archived == false)
+        precondition(dataStore.tasks.first(where: { $0.id == task.id })?.archivedAt == nil)
 
         dataStore.deleteTask(id: task.id)
         precondition(dataStore.tasks.first(where: { $0.id == task.id }) == nil)
@@ -476,6 +700,10 @@ struct MossBehaviorCheck {
         lifecycleStore.addTask(archivedChild)
         lifecycleStore.archiveProject(id: archivedProject.id, archived: true)
         precondition(
+            lifecycleStore.projects.first(where: { $0.id == archivedProject.id })?.archivedAt
+                != nil
+        )
+        precondition(
             !lifecycleStore.startableTasks.contains(where: { $0.id == archivedChild.id }),
             "Tasks inside archived projects must not be startable"
         )
@@ -483,6 +711,10 @@ struct MossBehaviorCheck {
         lifecycleStore.restoreTask(id: archivedChild.id)
         precondition(
             lifecycleStore.projects.first(where: { $0.id == archivedProject.id })?.archived == false
+        )
+        precondition(
+            lifecycleStore.projects.first(where: { $0.id == archivedProject.id })?.archivedAt
+                == nil
         )
         precondition(
             lifecycleStore.tasks.first(where: { $0.id == archivedChild.id })?.archived == false
@@ -708,12 +940,15 @@ struct MossBehaviorCheck {
         let exportProject = FocusProject(
             title: "Export project",
             symbol: "shippingbox.fill",
-            archived: true
+            archived: true,
+            archivedAt: .now
         )
         var exportTask = FocusTask(
             projectID: exportProject.id,
             title: "Export task",
-            category: exportProject.title
+            category: exportProject.title,
+            archived: true,
+            archivedAt: .now
         )
         exportTask.breakDuration = 20 * 60
         let exportSession = fixtureSession(
@@ -755,6 +990,8 @@ struct MossBehaviorCheck {
         let payload = try! decoder.decode(MossExport.self, from: exportData)
         precondition(payload.projects.first?.symbol == "shippingbox.fill")
         precondition(payload.projects.first?.archived == true)
+        precondition(payload.projects.first?.archivedAt != nil)
+        precondition(payload.tasks.first?.archivedAt != nil)
         precondition(payload.tasks.first?.breakDuration == 20 * 60)
         precondition(payload.sessions.count == 1)
         precondition(payload.interruptions.first?.reasonRaw == InterruptionReason.phone.rawValue)
