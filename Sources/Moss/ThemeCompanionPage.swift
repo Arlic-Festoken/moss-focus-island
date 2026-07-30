@@ -5,6 +5,13 @@ struct ThemeCompanionPage: View {
     @EnvironmentObject private var dataStore: DataStore
     @AppStorage("growthTheme") private var growthThemeRaw = GrowthTheme.douluo.rawValue
     @AppStorage("douluoAvatarForm") private var avatarFormRaw = DouluoAvatarForm.soulMaster.rawValue
+    @AppStorage("showDesktopCompanion") private var showDesktopCompanion = false
+    @AppStorage("companionMotionMode") private var motionModeRaw = CompanionMotionMode.quiet.rawValue
+    @AppStorage("companionWindowLayer") private var windowLayerRaw = CompanionWindowLayer.desktop.rawValue
+    @AppStorage("companionSize") private var companionSizeRaw = CompanionSize.regular.rawValue
+    @AppStorage("companionHideInFullScreen") private var hideInFullScreen = true
+    @AppStorage("companionPositionLocked") private var positionLocked = false
+    @ObservedObject private var companionController = DesktopCompanionPanelController.shared
     @State private var dialogueIndex = 0
 
     private var theme: GrowthTheme {
@@ -13,6 +20,29 @@ struct ThemeCompanionPage: View {
 
     private var avatarForm: DouluoAvatarForm {
         DouluoAvatarForm(rawValue: avatarFormRaw) ?? .soulMaster
+    }
+
+    private var motionMode: CompanionMotionMode {
+        CompanionMotionMode(rawValue: motionModeRaw) ?? .quiet
+    }
+
+    private var companionSize: CompanionSize {
+        CompanionSize(rawValue: companionSizeRaw) ?? .regular
+    }
+
+    private var characterStyle: CompanionCharacterStyle {
+        if theme == .moss { return .moss }
+        return avatarForm == .soulMaster ? .soulMaster : .soulBeast
+    }
+
+    private var companionPresentation: CompanionPresentation {
+        CompanionPresentation.make(
+            phase: store.phase,
+            theme: theme,
+            interactionIndex: dialogueIndex,
+            taskTitle: store.currentTaskTitle,
+            todayCompletedCount: store.todayCompletedCount
+        )
     }
 
     private var snapshot: ThemeAvatarSnapshot {
@@ -29,6 +59,7 @@ struct ThemeCompanionPage: View {
             LazyVStack(alignment: .leading, spacing: 18) {
                 pageHeader
                 companionStage
+                desktopCompanionBoard
 
                 if theme == .douluo && avatarForm == .soulMaster {
                     equipmentBoard
@@ -46,17 +77,34 @@ struct ThemeCompanionPage: View {
         MossPageHeader(
             eyebrow: "Companion",
             title: theme == .douluo ? "魂师伙伴" : "岛屿伙伴",
-            subtitle: "这是完整的角色板块。点击角色可以互动，未来的动画也会在这里呈现。"
+            subtitle: "一个由真实专注状态驱动的安静伙伴。轻点会回应，也可以把它放到桌面陪你。"
         ) {
-            if theme == .douluo {
-                Picker("形态", selection: $avatarFormRaw) {
-                    ForEach(DouluoAvatarForm.allCases) { form in
-                        Label(form.title, systemImage: form.symbol)
-                            .tag(form.rawValue)
+            HStack(spacing: 10) {
+                if theme == .douluo {
+                    Picker("形态", selection: $avatarFormRaw) {
+                        ForEach(DouluoAvatarForm.allCases) { form in
+                            Label(form.title, systemImage: form.symbol)
+                                .tag(form.rawValue)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .frame(width: 210)
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 230)
+
+                Button {
+                    showDesktopCompanion.toggle()
+                    companionController.setVisible(
+                        showDesktopCompanion,
+                        store: store,
+                        dataStore: dataStore
+                    )
+                } label: {
+                    Label(
+                        showDesktopCompanion ? "收回伙伴" : "放到桌面",
+                        systemImage: showDesktopCompanion ? "eye.slash" : "macwindow.on.rectangle"
+                    )
+                }
+                .buttonStyle(CapsuleButtonStyle(prominent: !showDesktopCompanion))
             }
         }
     }
@@ -117,17 +165,14 @@ struct ThemeCompanionPage: View {
                         }
                     }
 
-                    Text(avatarEmoji)
-                        .font(.system(size: 128))
-                        .shadow(color: avatarTint.opacity(0.25), radius: 24, y: 12)
-
-                    Text("动画预留")
-                        .font(MossTypography.font(9, weight: .bold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background(.regularMaterial, in: Capsule())
-                        .offset(x: 105, y: -112)
+                    MossCompanionCharacter(
+                        pose: companionPresentation.pose,
+                        style: characterStyle,
+                        progress: store.progress,
+                        motionMode: motionMode,
+                        dimension: 214,
+                        isInteracting: false
+                    )
                 }
 
                 Text("“\(dialogueLines[dialogueIndex])”")
@@ -145,6 +190,137 @@ struct ThemeCompanionPage: View {
         .buttonStyle(MossJellyPlainButtonStyle(pressedScale: 0.975))
         .mossJellyHover(scale: 1.012, lift: 2, glow: 0.10)
         .accessibilityLabel("\(companionName)，点击互动")
+    }
+
+    private var desktopCompanionBoard: some View {
+        MossCard {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .top, spacing: 14) {
+                    boardTitle(
+                        "桌面陪伴",
+                        subtitle: "默认停在桌面层，不盖住普通窗口。所有状态都来自 Moss 本地专注记录。"
+                    )
+                    Spacer()
+                    Toggle("显示伙伴", isOn: $showDesktopCompanion)
+                        .toggleStyle(.switch)
+                        .onChange(of: showDesktopCompanion) { _, visible in
+                            companionController.setVisible(
+                                visible,
+                                store: store,
+                                dataStore: dataStore
+                            )
+                        }
+                }
+
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 210), spacing: 12)],
+                    spacing: 12
+                ) {
+                    companionPreferenceTile(
+                        title: "陪伴节奏",
+                        subtitle: motionMode.subtitle,
+                        symbol: motionMode == .quiet ? "moon.stars.fill" : "sparkles"
+                    ) {
+                        Picker("陪伴节奏", selection: $motionModeRaw) {
+                            ForEach(CompanionMotionMode.allCases) { mode in
+                                Text(mode.title).tag(mode.rawValue)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                    }
+
+                    companionPreferenceTile(
+                        title: "显示位置",
+                        subtitle: (CompanionWindowLayer(rawValue: windowLayerRaw) ?? .desktop).title,
+                        symbol: (CompanionWindowLayer(rawValue: windowLayerRaw) ?? .desktop).symbol
+                    ) {
+                        Picker("显示位置", selection: $windowLayerRaw) {
+                            ForEach(CompanionWindowLayer.allCases) { layer in
+                                Text(layer.title).tag(layer.rawValue)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .onChange(of: windowLayerRaw) { _, _ in
+                            companionController.refreshPreferences()
+                        }
+                    }
+
+                    companionPreferenceTile(
+                        title: "伙伴尺寸",
+                        subtitle: "\(companionSize.title)号伙伴",
+                        symbol: "arrow.up.left.and.arrow.down.right"
+                    ) {
+                        Picker("伙伴尺寸", selection: $companionSizeRaw) {
+                            ForEach(CompanionSize.allCases) { size in
+                                Text(size.title).tag(size.rawValue)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .onChange(of: companionSizeRaw) { _, _ in
+                            companionController.refreshPreferences()
+                        }
+                    }
+
+                    companionPreferenceTile(
+                        title: "保持克制",
+                        subtitle: hideInFullScreen ? "全屏时自动收起" : "全屏时仍然显示",
+                        symbol: "rectangle.slash"
+                    ) {
+                        Toggle("全屏收起", isOn: $hideInFullScreen)
+                            .labelsHidden()
+                            .onChange(of: hideInFullScreen) { _, _ in
+                                companionController.refreshPreferences()
+                            }
+                    }
+                }
+
+                HStack {
+                    Toggle("锁定伙伴位置", isOn: $positionLocked)
+                        .onChange(of: positionLocked) { _, locked in
+                            companionController.setLocked(locked)
+                        }
+                    Spacer()
+                    Button("重置位置") {
+                        companionController.resetPosition()
+                    }
+                    .disabled(!showDesktopCompanion)
+                }
+                .font(MossTypography.font(11, weight: .semibold))
+            }
+        }
+    }
+
+    private func companionPreferenceTile<Content: View>(
+        title: String,
+        subtitle: String,
+        symbol: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 9) {
+                Image(systemName: symbol)
+                    .foregroundStyle(MossTheme.sage)
+                    .frame(width: 30, height: 30)
+                    .background(MossTheme.sage.opacity(0.09), in: RoundedRectangle(cornerRadius: 9))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(MossTypography.font(11, weight: .bold))
+                    Text(subtitle)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer()
+            }
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
+        .background(MossTheme.quietFill, in: RoundedRectangle(cornerRadius: 14))
     }
 
     private var companionStatus: some View {
@@ -394,11 +570,6 @@ struct ThemeCompanionPage: View {
         .padding(11)
         .background(MossTheme.quietFill.opacity(0.55), in: RoundedRectangle(cornerRadius: 14))
         .mossJellyHover(scale: 1.018, lift: 2, glow: 0.08)
-    }
-
-    private var avatarEmoji: String {
-        if theme == .moss { return "🏝️" }
-        return avatarForm == .soulMaster ? "🧘" : "🐉"
     }
 
     private var avatarTint: Color {

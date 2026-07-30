@@ -128,7 +128,8 @@ expect "Sources/Moss/SettingsView.swift" 'Section("自定义背景")'
 expect "Sources/Moss/SettingsView.swift" 'Section("成长主题")'
 expect "Sources/Moss/SettingsView.swift" "GrowthThemePicker(selection:"
 reject "Sources/Moss/SettingsView.swift" 'Toggle("显示主题桌宠"'
-expect "Sources/Moss/SettingsView.swift" '"桌宠已经移入侧边栏的独立板块'
+expect "Sources/Moss/SettingsView.swift" 'Section("桌面伙伴")'
+expect "Sources/Moss/SettingsView.swift" 'Toggle("让伙伴住在桌面上"'
 expect "Sources/Moss/SettingsView.swift" 'Picker("斗罗形态"'
 expect "Sources/Moss/SettingsView.swift" ".fileImporter("
 expect "Sources/Moss/SettingsView.swift" 'Slider(value: $backgroundBlurRadius, in: 0...60)'
@@ -351,10 +352,21 @@ expect "Sources/Moss/MainView.swift" 'case companion = "桌宠"'
 expect "Sources/Moss/MainView.swift" "case .companion: ThemeCompanionPage()"
 expect "Sources/Moss/ThemeCompanionPage.swift" "struct ThemeCompanionPage"
 expect "Sources/Moss/ThemeCompanionPage.swift" 'Label("点击和伙伴说话"'
-expect "Sources/Moss/ThemeCompanionPage.swift" 'Text("动画预留")'
+reject "Sources/Moss/ThemeCompanionPage.swift" 'Text("动画预留")'
+expect "Sources/Moss/ThemeCompanionPage.swift" 'MossCompanionCharacter('
+expect "Sources/Moss/ThemeCompanionPage.swift" '"桌面陪伴"'
 expect "Sources/Moss/ThemeCompanionPage.swift" 'Text("伙伴建议")'
 expect "Sources/Moss/ThemeCompanionPage.swift" 'boardTitle('
-reject "Sources/Moss/MossApp.swift" "ThemeCompanionPanelController.shared.show("
+expect "Sources/Moss/MossApp.swift" "DesktopCompanionPanelController.shared.show("
+expect "Sources/Moss/DesktopCompanion.swift" "final class DesktopCompanionPanelController"
+expect "Sources/Moss/DesktopCompanion.swift" "styleMask: [.borderless, .nonactivatingPanel]"
+expect "Sources/Moss/DesktopCompanion.swift" "CompanionPanelGeometry.clamped"
+expect "Sources/Moss/DesktopCompanion.swift" "panel.performDrag(with: event)"
+expect "Sources/Moss/DesktopCompanion.swift" "NSWorkspace.activeSpaceDidChangeNotification"
+expect "Sources/Moss/DesktopCompanion.swift" "frontmostApplicationIsFullScreen"
+expect "Sources/Moss/DesktopCompanion.swift" "struct MossCompanionCharacter"
+expect "Sources/Moss/DesktopCompanion.swift" "accessibilityReduceMotion"
+expect "Sources/Moss/MenuBarView.swift" "DesktopCompanionPanelController.shared"
 expect "Sources/Moss/FocusCultivationRank.swift" "case titledDouluo"
 expect "Sources/Moss/FocusCultivationRank.swift" "case limitDouluo"
 expect "Sources/Moss/FocusCultivationRank.swift" "case millionYear"

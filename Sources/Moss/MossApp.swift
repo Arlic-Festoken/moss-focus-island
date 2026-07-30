@@ -75,6 +75,7 @@ struct MossApp: App {
                     cloudSync.startIfEnabled()
                     NotchPanelController.shared.show(store: store)
                     DesktopWidgetPanelController.shared.show(store: store, dataStore: dataStore)
+                    DesktopCompanionPanelController.shared.show(store: store, dataStore: dataStore)
                 }
                 .onReceive(
                     NotificationCenter.default.publisher(for: .mossApplicationReopenRequested)

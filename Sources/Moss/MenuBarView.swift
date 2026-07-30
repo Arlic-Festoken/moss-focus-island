@@ -6,6 +6,7 @@ struct MenuBarView: View {
     @Environment(\.openWindow) private var openWindow
     @ObservedObject private var panelController = NotchPanelController.shared
     @ObservedObject private var desktopWidgetController = DesktopWidgetPanelController.shared
+    @ObservedObject private var companionController = DesktopCompanionPanelController.shared
 
     private var activeTasks: [FocusTask] {
         dataStore.startableTasks
@@ -53,6 +54,18 @@ struct MenuBarView: View {
                 .buttonStyle(MossJellyPlainButtonStyle())
                 .help(desktopWidgetController.isVisible ? "隐藏桌面小组件" : "显示桌面小组件")
                 .accessibilityLabel(desktopWidgetController.isVisible ? "隐藏桌面小组件" : "显示桌面小组件")
+                Button {
+                    companionController.setVisible(
+                        !companionController.isVisible,
+                        store: store,
+                        dataStore: dataStore
+                    )
+                } label: {
+                    Image(systemName: companionController.isVisible ? "leaf.fill" : "leaf")
+                }
+                .buttonStyle(MossJellyPlainButtonStyle())
+                .help(companionController.isVisible ? "收起桌面伙伴" : "显示桌面伙伴")
+                .accessibilityLabel(companionController.isVisible ? "收起桌面伙伴" : "显示桌面伙伴")
                 Button {
                     panelController.setVisible(!panelController.isVisible, store: store)
                 } label: {

@@ -9,6 +9,12 @@ struct SettingsView: View {
     @AppStorage("breakMinutes") private var breakMinutes = 5
     @AppStorage("showNotchIsland") private var showNotchIsland = true
     @AppStorage("showDesktopWidget") private var showDesktopWidget = false
+    @AppStorage("showDesktopCompanion") private var showDesktopCompanion = false
+    @AppStorage("companionMotionMode") private var companionMotionMode = CompanionMotionMode.quiet.rawValue
+    @AppStorage("companionWindowLayer") private var companionWindowLayer = CompanionWindowLayer.desktop.rawValue
+    @AppStorage("companionSize") private var companionSize = CompanionSize.regular.rawValue
+    @AppStorage("companionHideInFullScreen") private var companionHideInFullScreen = true
+    @AppStorage("companionPositionLocked") private var companionPositionLocked = false
     @AppStorage("subtleSound") private var subtleSound = true
     @AppStorage("launchSilently") private var launchSilently = true
     @AppStorage("colorTheme") private var colorTheme = MossColorTheme.sage.rawValue
@@ -102,9 +108,67 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.segmented)
                 }
-                Text("桌宠已经移入侧边栏的独立板块。主题只改变叙事和等级展示，不会修改任何专注记录。")
+                Text("主题只改变桌宠叙事与成长展示，不会修改任何专注记录。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+            Section("桌面伙伴") {
+                Toggle("让伙伴住在桌面上", isOn: $showDesktopCompanion)
+                    .onChange(of: showDesktopCompanion) { _, visible in
+                        DesktopCompanionPanelController.shared.setVisible(
+                            visible,
+                            store: store,
+                            dataStore: dataStore
+                        )
+                    }
+
+                Picker("陪伴节奏", selection: $companionMotionMode) {
+                    ForEach(CompanionMotionMode.allCases) { mode in
+                        Text(mode.title).tag(mode.rawValue)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Picker("伙伴尺寸", selection: $companionSize) {
+                    ForEach(CompanionSize.allCases) { size in
+                        Text(size.title).tag(size.rawValue)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: companionSize) { _, _ in
+                    DesktopCompanionPanelController.shared.refreshPreferences()
+                }
+
+                Picker("显示层级", selection: $companionWindowLayer) {
+                    ForEach(CompanionWindowLayer.allCases) { layer in
+                        Label(layer.title, systemImage: layer.symbol)
+                            .tag(layer.rawValue)
+                    }
+                }
+                .onChange(of: companionWindowLayer) { _, _ in
+                    DesktopCompanionPanelController.shared.refreshPreferences()
+                }
+
+                Toggle("全屏工作时自动收起", isOn: $companionHideInFullScreen)
+                    .onChange(of: companionHideInFullScreen) { _, _ in
+                        DesktopCompanionPanelController.shared.refreshPreferences()
+                    }
+
+                Toggle("锁定伙伴位置", isOn: $companionPositionLocked)
+                    .onChange(of: companionPositionLocked) { _, locked in
+                        DesktopCompanionPanelController.shared.setLocked(locked)
+                    }
+
+                HStack {
+                    Text("默认停在桌面层，不会盖住普通窗口；可拖动并记住位置。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("重置位置") {
+                        DesktopCompanionPanelController.shared.resetPosition()
+                    }
+                    .disabled(!showDesktopCompanion)
+                }
             }
             Section("字体") {
                 FontThemePicker(selection: $fontTheme)
