@@ -21,7 +21,7 @@
 - 年度热力图、累计时间、连续天数与成长里程碑；
 - 成长主题、桌宠、自定义背景和多套配色；
 - 本地 JSON / CSV 导出，归档可恢复；
-- 所有数据仅保存在本机，不上传、不登录。
+- 可选的 iCloud 私有数据库同步；默认关闭，不需要 Moss 账户。
 
 ### 桌面小组件
 
@@ -50,11 +50,15 @@
 
 ## 数据与隐私
 
-数据只保存在：
+Moss 始终先把数据保存在：
 
 ```text
 ~/Library/Application Support/Moss/moss-data.json
 ```
+
+设置中启用 iCloud 后，项目、任务、专注记录、计划和手记会同步到当前
+Apple ID 的 CloudKit 私有数据库。关闭同步不会删除本机文件。开发与签名配置见
+[iCloud 同步说明](docs/icloud-sync.md)。
 
 快捷键：
 
@@ -68,6 +72,15 @@
 ./scripts/verify-all.sh
 ./scripts/build-app.sh
 open dist/Moss.app
+```
+
+普通构建采用本地签名，iCloud 保持不可用。连接真实 CloudKit 容器需要 Apple
+Development 签名：
+
+```bash
+MOSS_ENABLE_ICLOUD_ENTITLEMENTS=1 \
+MOSS_SIGN_IDENTITY="Apple Development: Your Name (TEAMID)" \
+./scripts/build-app.sh
 ```
 
 发布下一版本：
