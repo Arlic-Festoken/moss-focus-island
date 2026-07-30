@@ -269,6 +269,35 @@ final class DataStore: ObservableObject {
         save()
     }
 
+    @discardableResult
+    func reschedulePlan(
+        id: UUID,
+        toDay destinationDay: Date,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard let index = plans.firstIndex(where: { $0.id == id }) else {
+            return false
+        }
+        let time = calendar.dateComponents(
+            [.hour, .minute, .second],
+            from: plans[index].scheduledAt
+        )
+        guard let destination = calendar.date(
+            bySettingHour: time.hour ?? 9,
+            minute: time.minute ?? 0,
+            second: time.second ?? 0,
+            of: destinationDay
+        ) else {
+            return false
+        }
+
+        plans[index].scheduledAt = destination
+        plans[index].updatedAt = .now
+        sortPlans()
+        save()
+        return true
+    }
+
     func setPlanStatus(id: UUID, status: PlanStatus) {
         guard let index = plans.firstIndex(where: { $0.id == id }) else { return }
         plans[index].statusRaw = status.rawValue

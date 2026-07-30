@@ -707,6 +707,82 @@ struct MossBehaviorCheck {
             movementStore.journalRecordSummaries.map(\.id)
                 == movementStore.journalRecords.map(\.id)
         )
+        let searchOnlyThroughLinkedTask = PlanEntry(
+            title: "整理材料",
+            note: "准备下一步",
+            scheduledAt: plannedDate,
+            linkedTaskID: generatedTask.id
+        )
+        precondition(
+            PlanJournalSearch.matches(
+                plan: searchOnlyThroughLinkedTask,
+                linkedTaskTitle: generatedTask.title,
+                query: "实验 结论"
+            )
+        )
+        precondition(
+            PlanJournalSearch.matches(record: importedJournal, query: "模型 检查")
+        )
+        precondition(
+            !PlanJournalSearch.matches(record: importedJournal, query: "没有的内容")
+        )
+
+        let closureSession = fixtureSession(
+            title: "写下实验结论",
+            date: plannedDate,
+            duration: 1_500,
+            status: .completed
+        )
+        let skippedClosurePlan = PlanEntry(
+            title: "留到以后",
+            scheduledAt: plannedDate,
+            status: .skipped
+        )
+        let closureDraft = DailyJournalDraftBuilder.make(
+            for: plannedDate,
+            plans: movementStore.plans + [skippedClosurePlan],
+            sessions: [closureSession]
+        )
+        precondition(closureDraft.title.contains("今日收束"))
+        precondition(closureDraft.body.contains("1 段专注"))
+        precondition(closureDraft.body.contains("写下实验结论"))
+        precondition(closureDraft.body.contains("1 件搁置"))
+        precondition(closureDraft.body.contains("值得记住："))
+        precondition(closureDraft.body.contains("下一步："))
+
+        let originalPlanTime = Calendar.current.dateComponents(
+            [.hour, .minute],
+            from: plan.scheduledAt
+        )
+        let tomorrow = Calendar.current.date(
+            byAdding: .day,
+            value: 1,
+            to: plannedDate
+        )!
+        precondition(
+            movementStore.reschedulePlan(id: plan.id, toDay: tomorrow)
+        )
+        let rescheduledPlan = movementStore.plans.first { $0.id == plan.id }!
+        let rescheduledTime = Calendar.current.dateComponents(
+            [.hour, .minute],
+            from: rescheduledPlan.scheduledAt
+        )
+        precondition(Calendar.current.isDate(rescheduledPlan.scheduledAt, inSameDayAs: tomorrow))
+        precondition(rescheduledTime.hour == originalPlanTime.hour)
+        precondition(rescheduledTime.minute == originalPlanTime.minute)
+        precondition(rescheduledPlan.estimatedMinutes == plan.estimatedMinutes)
+
+        let overdueProbe = PlanEntry(
+            title: "过期计划",
+            scheduledAt: Calendar.current.date(
+                byAdding: .day,
+                value: -2,
+                to: plannedDate
+            )!
+        )
+        precondition(overdueProbe.isOverdue(relativeTo: plannedDate))
+        print("plan-journal-search-replan-closure=pass")
+
         let reloadedPlanStore = DataStore(fileURL: movementURL, seedIfMissing: false)
         precondition(reloadedPlanStore.plans.first?.status == .completed)
         precondition(

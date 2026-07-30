@@ -860,19 +860,6 @@ private struct PlanContextMenuModifier: ViewModifier {
             value: offset,
             to: calendar.startOfDay(for: .now)
         ) ?? .now
-        let time = calendar.dateComponents(
-            [.hour, .minute, .second],
-            from: plan.scheduledAt
-        )
-        guard let destination = calendar.date(
-            bySettingHour: time.hour ?? 9,
-            minute: time.minute ?? 0,
-            second: time.second ?? 0,
-            of: destinationDay
-        ) else { return }
-
-        var updated = plan
-        updated.scheduledAt = destination
-        dataStore.updatePlan(updated)
+        dataStore.reschedulePlan(id: plan.id, toDay: destinationDay)
     }
 }

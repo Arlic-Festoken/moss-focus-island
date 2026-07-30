@@ -38,10 +38,12 @@ struct PlanView: View {
     @State private var editingPlan: PlanEntry?
     @State private var newPlanDraft: PlanEditorDraft?
     @State private var isImportingJournal = false
-    @State private var isWritingJournal = false
+    @State private var journalDraft: JournalEditorDraft?
     @State private var editingJournalRecord: JournalRecord?
     @State private var importFeedback: String?
     @State private var hasPreloadedShelves = false
+    @State private var searchText = ""
+    @FocusState private var isSearchFocused: Bool
 
     init(
         journalComposerRequest: UUID? = nil,
@@ -57,22 +59,43 @@ struct PlanView: View {
 
     private func plans(for targetShelf: PlanShelf) -> [PlanEntry] {
         let calendar = Calendar.current
+        let shelfPlans: [PlanEntry]
         switch targetShelf {
         case .schedule:
             return []
         case .today:
-            return dataStore.plans.filter {
+            shelfPlans = dataStore.plans.filter {
                 calendar.isDateInToday($0.scheduledAt)
                     || ($0.status == .planned && $0.scheduledAt < Date.now.dayStart)
             }
         case .upcoming:
-            return dataStore.plans.filter {
+            shelfPlans = dataStore.plans.filter {
                 $0.scheduledAt >= Date.now.dayStart.addingTimeInterval(86_400)
                     || $0.status == .skipped
             }
         case .journal:
             return []
         }
+        return shelfPlans.filter { plan in
+            let linkedTaskTitle = plan.linkedTaskID.flatMap { linkedTaskID in
+                dataStore.tasks.first { $0.id == linkedTaskID }?.title
+            }
+            return PlanJournalSearch.matches(
+                plan: plan,
+                linkedTaskTitle: linkedTaskTitle,
+                query: searchText
+            )
+        }
+    }
+
+    private var visibleJournalRecords: [JournalRecord] {
+        dataStore.journalRecords.filter {
+            PlanJournalSearch.matches(record: $0, query: searchText)
+        }
+    }
+
+    private var visibleJournalSummaries: [JournalRecordSummary] {
+        visibleJournalRecords.map { JournalRecordSummary(record: $0) }
     }
 
     private var selectedPlan: PlanEntry? {
@@ -80,7 +103,7 @@ struct PlanView: View {
     }
 
     private var selectedRecord: JournalRecord? {
-        dataStore.journalRecords.first { $0.id == selectedRecordID }
+        visibleJournalRecords.first { $0.id == selectedRecordID }
     }
 
     var body: some View {
@@ -132,11 +155,12 @@ struct PlanView: View {
         .sheet(item: $editingPlan) { plan in
             PlanEditorView(plan: plan)
         }
-        .sheet(isPresented: $isWritingJournal) {
-            JournalEditorView { record in
+        .sheet(item: $journalDraft) { draft in
+            JournalEditorView(draft: draft) { record in
                 selectedRecordID = record.id
                 selectShelf(.journal)
             }
+            .id(draft.id)
         }
         .sheet(item: $editingJournalRecord) { record in
             JournalEditorView(record: record) { savedRecord in
@@ -176,6 +200,7 @@ struct PlanView: View {
         }
         .onChange(of: dataStore.plans.map(\.id)) { _, _ in alignSelection() }
         .onChange(of: dataStore.journalRecords.map(\.id)) { _, _ in alignSelection() }
+        .onChange(of: searchText) { _, _ in alignSelection() }
         .onChange(of: journalComposerRequest) { _, request in
             handleJournalComposerRequest(request)
         }
@@ -259,10 +284,59 @@ struct PlanView: View {
                     .font(MossTypography.font(9, weight: .medium))
                     .foregroundStyle(.secondary)
             }
+
+            searchControl
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 8)
         .background(MossTheme.quietFill.opacity(0.55))
+    }
+
+    private var searchControl: some View {
+        HStack(spacing: 7) {
+            Button {
+                beginSearch()
+            } label: {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(MossTheme.sage)
+            }
+            .buttonStyle(MossJellyPlainButtonStyle(pressedScale: 0.92))
+            .keyboardShortcut("k", modifiers: [.command])
+            .help("搜索计划与手记（⌘K）")
+
+            if shelf != .schedule {
+                TextField("搜索\(shelf == .journal ? "手记" : "计划")", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(MossTypography.font(10, weight: .medium))
+                    .focused($isSearchFocused)
+                    .frame(width: 126)
+                    .onKeyPress(.escape) {
+                        clearSearch()
+                        return .handled
+                    }
+
+                if !searchText.isEmpty {
+                    Button {
+                        clearSearch()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(MossJellyPlainButtonStyle(pressedScale: 0.92))
+                    .help("清空搜索（Esc）")
+                } else {
+                    Text("⌘K")
+                        .font(MossTypography.font(8, weight: .bold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 28)
+        .background(MossTheme.paper.opacity(0.72), in: Capsule())
+        .overlay(Capsule().stroke(MossTheme.hairline))
     }
 
     private var planShelf: some View {
@@ -300,9 +374,15 @@ struct PlanView: View {
         let targetPlans = plans(for: targetShelf)
         if targetPlans.isEmpty {
             PlanShelfEmpty(
-                symbol: targetShelf == .today ? "sun.haze" : "calendar.badge.plus",
-                title: targetShelf == .today ? "今天还没有安排" : "未来留有余地",
-                subtitle: "写下一件值得专注的小事。"
+                symbol: searchText.isEmpty
+                    ? (targetShelf == .today ? "sun.haze" : "calendar.badge.plus")
+                    : "magnifyingglass",
+                title: searchText.isEmpty
+                    ? (targetShelf == .today ? "今天还没有安排" : "未来留有余地")
+                    : "没有找到相关计划",
+                subtitle: searchText.isEmpty
+                    ? "写下一件值得专注的小事。"
+                    : "试试标题、说明或关联任务中的词。"
             )
         } else {
             ForEach(targetPlans) { plan in
@@ -343,14 +423,16 @@ struct PlanView: View {
 
     @ViewBuilder
     private var journalRows: some View {
-        if dataStore.journalRecords.isEmpty {
+        if visibleJournalRecords.isEmpty {
             PlanShelfEmpty(
-                symbol: "book.closed",
-                title: "这里还没有手记",
-                subtitle: "可选择 Apple 手记导出文件夹或 index.html。"
+                symbol: searchText.isEmpty ? "book.closed" : "magnifyingglass",
+                title: searchText.isEmpty ? "这里还没有手记" : "没有找到相关手记",
+                subtitle: searchText.isEmpty
+                    ? "可选择 Apple 手记导出文件夹或 index.html。"
+                    : "试试标题或正文中的词。"
             )
         } else {
-            ForEach(dataStore.journalRecordSummaries) { summary in
+            ForEach(visibleJournalSummaries) { summary in
                 Button {
                     selectedRecordID = summary.id
                 } label: {
@@ -400,7 +482,7 @@ struct PlanView: View {
                 onEdit: { editingPlan = selectedPlan }
             )
         } else {
-            PlanDayPage()
+            PlanDayPage(onCloseDay: openDailyClosure)
         }
     }
 
@@ -414,14 +496,17 @@ struct PlanView: View {
                     : nil
             )
         } else {
-            PlanJournalOverview(onWrite: openJournalComposer)
+            PlanJournalOverview(
+                onWrite: openJournalComposer,
+                onCloseDay: openDailyClosure
+            )
         }
     }
 
     private func alignSelection() {
         if shelf == .journal {
             if selectedRecord == nil {
-                selectedRecordID = dataStore.journalRecords.first?.id
+                selectedRecordID = visibleJournalRecords.first?.id
             }
             return
         }
@@ -451,7 +536,27 @@ struct PlanView: View {
 
     private func openJournalComposer() {
         selectShelf(.journal)
-        isWritingJournal = true
+        journalDraft = .blank()
+    }
+
+    private func openDailyClosure() {
+        selectShelf(.journal)
+        journalDraft = DailyJournalDraftBuilder.make(
+            plans: dataStore.plans,
+            sessions: dataStore.sessions
+        )
+    }
+
+    private func beginSearch() {
+        if shelf == .schedule {
+            selectShelf(.today)
+        }
+        isSearchFocused = true
+    }
+
+    private func clearSearch() {
+        searchText = ""
+        isSearchFocused = false
     }
 
     private func presentPlanEditor(_ start: Date, _ minutes: Int) {
@@ -551,7 +656,7 @@ private struct PlanShelfRow: View {
                     Circle()
                         .fill(statusColor)
                         .frame(width: 5, height: 5)
-                    Text(plan.status.title)
+                    Text(statusTitle)
                     Text("·")
                     Text("\(plan.estimatedMinutes) 分钟")
                 }
@@ -577,11 +682,18 @@ private struct PlanShelfRow: View {
     }
 
     private var statusColor: Color {
-        switch plan.status {
+        if plan.isOverdue() {
+            return MossTheme.apricot
+        }
+        return switch plan.status {
         case .planned: MossTheme.apricot
         case .completed: MossTheme.mint
         case .skipped: .secondary
         }
+    }
+
+    private var statusTitle: String {
+        plan.isOverdue() ? "已过期" : plan.status.title
     }
 }
 
@@ -670,6 +782,7 @@ private struct PlanShelfEmpty: View {
 
 private struct PlanDayPage: View {
     @EnvironmentObject private var dataStore: DataStore
+    let onCloseDay: () -> Void
 
     private var todayPlans: [PlanEntry] {
         dataStore.plans.filter { Calendar.current.isDateInToday($0.scheduledAt) }
@@ -697,8 +810,16 @@ private struct PlanDayPage: View {
                     title: Date.now.formatted(.dateTime.month(.wide).day())
                 )
 
-                Text("今天的一页")
-                    .font(MossTypography.editorial(35, weight: .semibold))
+                HStack(alignment: .center) {
+                    Text("今天的一页")
+                        .font(MossTypography.editorial(35, weight: .semibold))
+                    Spacer()
+                    Button(action: onCloseDay) {
+                        Label("收束今天", systemImage: "text.book.closed")
+                    }
+                    .buttonStyle(CapsuleButtonStyle(tint: MossTheme.sage))
+                    .help("根据今天的计划与专注生成一份可编辑草稿")
+                }
 
                 HStack(spacing: 12) {
                     PlanMetric(value: "\(todayPlans.filter { $0.status == .planned }.count)", label: "等待开始", symbol: "circle.dashed")
@@ -766,6 +887,13 @@ private struct PlanEntryPage: View {
                     .tracking(-0.6)
                     .textSelection(.enabled)
 
+                if plan.isOverdue() {
+                    PlanOverdueCallout(
+                        moveToToday: { move(toDayOffset: 0) },
+                        moveToTomorrow: { move(toDayOffset: 1) }
+                    )
+                }
+
                 if !plan.note.isEmpty {
                     Text(plan.note)
                         .font(MossTypography.font(14))
@@ -829,6 +957,14 @@ private struct PlanEntryPage: View {
                                 dataStore.setPlanStatus(id: plan.id, status: .skipped)
                             }
                         }
+                        Button("移到今天") {
+                            move(toDayOffset: 0)
+                        }
+                        .disabled(Calendar.current.isDateInToday(plan.scheduledAt))
+                        Button("移到明天") {
+                            move(toDayOffset: 1)
+                        }
+                        .disabled(Calendar.current.isDateInTomorrow(plan.scheduledAt))
                         Divider()
                         Button("删除计划", role: .destructive) {
                             isConfirmingDelete = true
@@ -868,6 +1004,80 @@ private struct PlanEntryPage: View {
         let task = dataStore.task(for: plan)
         let duration = mode == .ignition ? 5 * 60 : TimeInterval(plan.estimatedMinutes * 60)
         store.start(task: task, mode: mode, duration: duration)
+    }
+
+    private func move(toDayOffset offset: Int) {
+        let calendar = Calendar.current
+        let destinationDay = calendar.date(
+            byAdding: .day,
+            value: offset,
+            to: calendar.startOfDay(for: .now)
+        ) ?? .now
+        dataStore.reschedulePlan(id: plan.id, toDay: destinationDay)
+    }
+}
+
+private struct PlanOverdueCallout: View {
+    let moveToToday: () -> Void
+    let moveToTomorrow: () -> Void
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 14) {
+                overdueIcon
+                overdueMessage
+                Spacer()
+                moveActions
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    overdueIcon
+                    overdueMessage
+                    Spacer()
+                }
+                moveActions
+            }
+        }
+        .padding(14)
+        .background(
+            MossTheme.apricot.opacity(0.055),
+            in: RoundedRectangle(cornerRadius: 17)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 17)
+                .stroke(MossTheme.apricot.opacity(0.22))
+        )
+    }
+
+    private var overdueIcon: some View {
+        Image(systemName: "clock.badge.exclamationmark")
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundStyle(MossTheme.apricot)
+            .frame(width: 38, height: 38)
+            .background(
+                MossTheme.apricot.opacity(0.12),
+                in: RoundedRectangle(cornerRadius: 12)
+            )
+    }
+
+    private var overdueMessage: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("这条计划已经过期")
+                .font(MossTypography.editorial(16, weight: .semibold))
+            Text("保留原来的开始时间，只把它放回合适的一天。")
+                .font(MossTypography.font(10))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var moveActions: some View {
+        HStack(spacing: 8) {
+            Button("移到今天", action: moveToToday)
+                .buttonStyle(CapsuleButtonStyle(tint: MossTheme.apricot))
+            Button("移到明天", action: moveToTomorrow)
+                .buttonStyle(CapsuleButtonStyle())
+        }
     }
 }
 
@@ -1217,13 +1427,14 @@ private struct JournalEditorView: View {
 
     init(
         record: JournalRecord? = nil,
+        draft: JournalEditorDraft? = nil,
         onSave: @escaping (JournalRecord) -> Void
     ) {
         self.record = record
         self.onSave = onSave
-        _title = State(initialValue: record?.title ?? "")
-        _bodyText = State(initialValue: record?.body ?? "")
-        _entryDate = State(initialValue: record?.entryDate ?? .now)
+        _title = State(initialValue: record?.title ?? draft?.title ?? "")
+        _bodyText = State(initialValue: record?.body ?? draft?.body ?? "")
+        _entryDate = State(initialValue: record?.entryDate ?? draft?.entryDate ?? .now)
     }
 
     var body: some View {
@@ -1256,7 +1467,7 @@ private struct JournalEditorView: View {
 
                         Spacer()
 
-                        Label("仅保存在本机", systemImage: "lock.fill")
+                        Label("草稿只在本机生成", systemImage: "lock.fill")
                             .font(MossTypography.font(9, weight: .semibold))
                             .foregroundStyle(MossTheme.sage)
                             .padding(.horizontal, 10)
@@ -1373,6 +1584,7 @@ private struct JournalEditorView: View {
 private struct PlanJournalOverview: View {
     @EnvironmentObject private var dataStore: DataStore
     let onWrite: () -> Void
+    let onCloseDay: () -> Void
 
     private var recentSessions: [FocusSession] {
         dataStore.sessions
@@ -1418,6 +1630,40 @@ private struct PlanJournalOverview: View {
                     .overlay(
                         RoundedRectangle(cornerRadius: 17)
                             .stroke(MossTheme.sage.opacity(0.18))
+                    )
+                }
+                .buttonStyle(MossJellyPlainButtonStyle())
+
+                Button(action: onCloseDay) {
+                    HStack(spacing: 14) {
+                        Image(systemName: "text.book.closed")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(MossTheme.apricot)
+                            .frame(width: 38, height: 38)
+                            .background(
+                                MossTheme.apricot.opacity(0.11),
+                                in: RoundedRectangle(cornerRadius: 12)
+                            )
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("收束今天")
+                                .font(MossTypography.editorial(17, weight: .semibold))
+                            Text("用今天真实发生的计划与专注，生成一页可编辑草稿。")
+                                .font(MossTypography.font(10))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(MossTheme.apricot)
+                    }
+                    .padding(14)
+                    .background(
+                        MossTheme.apricot.opacity(0.045),
+                        in: RoundedRectangle(cornerRadius: 17)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 17)
+                            .stroke(MossTheme.apricot.opacity(0.17))
                     )
                 }
                 .buttonStyle(MossJellyPlainButtonStyle())

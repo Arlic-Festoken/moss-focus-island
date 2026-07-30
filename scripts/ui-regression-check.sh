@@ -89,10 +89,21 @@ reject "Sources/Moss/TimelineFilterControls.swift" "Text(date, format: .dateTime
 expect "Sources/Moss/TimelineFilterControls.swift" "Text(String(calendar.component(.day, from: date)))"
 expect "Sources/Moss/Models.swift" "struct JournalRecordSummary: Identifiable, Hashable"
 expect "Sources/Moss/DataStore.swift" "journalRecordSummaries = journalRecords.map(JournalRecordSummary.init)"
-expect "Sources/Moss/PlanView.swift" "ForEach(dataStore.journalRecordSummaries)"
+expect "Sources/Moss/PlanView.swift" "ForEach(visibleJournalSummaries)"
 expect "Sources/Moss/PlanView.swift" "PlanShelfTabButtonStyle()"
 expect "Sources/Moss/PlanView.swift" "hasPreloadedShelves"
 expect "Sources/Moss/PlanView.swift" ".shelfLayer(isActive: shelf == .journal)"
+expect "Sources/Moss/PlanView.swift" '.keyboardShortcut("k", modifiers: [.command])'
+expect "Sources/Moss/PlanView.swift" ".onKeyPress(.escape)"
+expect "Sources/Moss/PlanView.swift" '"没有找到相关计划"'
+expect "Sources/Moss/PlanView.swift" '"没有找到相关手记"'
+expect "Sources/Moss/PlanView.swift" '"这条计划已经过期"'
+expect "Sources/Moss/PlanView.swift" 'Label("收束今天", systemImage: "text.book.closed")'
+expect "Sources/Moss/PlanView.swift" "DailyJournalDraftBuilder.make("
+expect "Sources/Moss/PlanJournalSupport.swift" "enum PlanJournalSearch"
+expect "Sources/Moss/PlanJournalSupport.swift" "enum DailyJournalDraftBuilder"
+expect "Sources/Moss/PlanJournalSupport.swift" "func isOverdue("
+expect "Sources/Moss/DataStore.swift" "func reschedulePlan("
 reject "Sources/Moss/PlanView.swift" "Text(String(record.body.prefix(140)))"
 expect "Sources/Moss/DataStore.swift" "func updateJournalRecord(_ record: JournalRecord)"
 reject "Sources/Moss/PlanView.swift" "withAnimation("
