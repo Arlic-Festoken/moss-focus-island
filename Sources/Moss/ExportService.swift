@@ -67,6 +67,8 @@ struct MossExport: Codable {
     var interruptions: [Interruption]
     var reflections: [Reflection]
     var snapshots: [DailySnapshot]
+    var plans: [PlanEntry]
+    var journalRecords: [JournalRecord]
 }
 
 @MainActor
@@ -78,6 +80,8 @@ enum ExportService {
         interruptions: [Interruption],
         reflections: [Reflection],
         snapshots: [DailySnapshot],
+        plans: [PlanEntry] = [],
+        journalRecords: [JournalRecord] = [],
         format: ExportFormat
     ) throws -> ExportResult {
         let panel = NSSavePanel()
@@ -97,7 +101,9 @@ enum ExportService {
                 sessions: sessions,
                 interruptions: interruptions,
                 reflections: reflections,
-                snapshots: snapshots
+                snapshots: snapshots,
+                plans: plans,
+                journalRecords: journalRecords
             )
         case .csv:
             let header = "id,task_id,task_title,project_id,project_title,category,started_at,ended_at,planned_seconds,focus_seconds,paused_seconds,warmup_seconds,timer_activity,mode,status,completion,distraction,note\n"
@@ -117,7 +123,9 @@ enum ExportService {
         sessions: [FocusSession],
         interruptions: [Interruption] = [],
         reflections: [Reflection] = [],
-        snapshots: [DailySnapshot] = []
+        snapshots: [DailySnapshot] = [],
+        plans: [PlanEntry] = [],
+        journalRecords: [JournalRecord] = []
     ) throws -> Data {
         let payload = MossExport(
             exportedAt: .now,
@@ -174,7 +182,9 @@ enum ExportService {
                 },
             interruptions: interruptions,
             reflections: reflections,
-            snapshots: snapshots
+            snapshots: snapshots,
+            plans: plans,
+            journalRecords: journalRecords
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

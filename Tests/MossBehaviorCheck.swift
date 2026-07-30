@@ -653,6 +653,172 @@ struct MossBehaviorCheck {
         )
         print("task-project-movement=pass")
 
+        let plannedDate = Date.now
+        let plan = PlanEntry(
+            title: "写下实验结论",
+            note: "先整理三个关键发现",
+            scheduledAt: plannedDate,
+            estimatedMinutes: 40
+        )
+        movementStore.addPlan(plan)
+        let generatedTask = movementStore.task(for: plan)
+        precondition(generatedTask.title == plan.title)
+        precondition(generatedTask.focusDuration == 40 * 60)
+        precondition(
+            movementStore.plans.first(where: { $0.id == plan.id })?.linkedTaskID
+                == generatedTask.id
+        )
+        movementStore.completePlannedEntry(linkedTo: generatedTask.id, on: plannedDate)
+        precondition(
+            movementStore.plans.first(where: { $0.id == plan.id })?.status
+                == .completed
+        )
+        let importedJournal = JournalRecord(
+            title: "一次安静的推进",
+            body: "完成了模型检查。",
+            entryDate: plannedDate,
+            source: .appleJournal,
+            importedFileName: "Journal.pdf"
+        )
+        movementStore.addJournalRecord(importedJournal)
+        precondition(movementStore.addJournalRecords([importedJournal]) == 0)
+        var localJournal = JournalRecord(
+            title: "今天的记录",
+            body: "先留下一个想法。",
+            entryDate: plannedDate,
+            source: .moss
+        )
+        movementStore.addJournalRecord(localJournal)
+        localJournal.body = "已经补充完成。"
+        movementStore.updateJournalRecord(localJournal)
+        precondition(
+            movementStore.journalRecords.first(where: { $0.id == localJournal.id })?.body
+                == "已经补充完成。"
+        )
+        let summaryProbe = JournalRecordSummary(
+            record: JournalRecord(
+                title: "摘要性能检查",
+                body: String(repeating: "一段正文 \n", count: 30)
+            )
+        )
+        precondition(summaryProbe.preview.count <= 72)
+        precondition(!summaryProbe.preview.contains("\n"))
+        precondition(
+            movementStore.journalRecordSummaries.map(\.id)
+                == movementStore.journalRecords.map(\.id)
+        )
+        let reloadedPlanStore = DataStore(fileURL: movementURL, seedIfMissing: false)
+        precondition(reloadedPlanStore.plans.first?.status == .completed)
+        precondition(
+            reloadedPlanStore.journalRecords.contains(where: { $0.source == .appleJournal })
+        )
+        precondition(
+            reloadedPlanStore.journalRecords.contains(where: { $0.id == localJournal.id })
+        )
+        reloadedPlanStore.deleteTask(id: generatedTask.id)
+        precondition(reloadedPlanStore.plans.first?.linkedTaskID == nil)
+        print("plan-journal-persistence-linking=pass")
+
+        let cloudSnapshot = movementStore.databaseSnapshot()
+        let cloudEntities = try! CloudSyncCodec.entities(from: cloudSnapshot)
+        precondition(cloudEntities.count ==
+            cloudSnapshot.projects.count
+                + cloudSnapshot.tasks.count
+                + cloudSnapshot.sessions.count
+                + cloudSnapshot.interruptions.count
+                + cloudSnapshot.reflections.count
+                + cloudSnapshot.snapshots.count
+                + cloudSnapshot.plans.count
+                + cloudSnapshot.journalRecords.count
+        )
+        let journalEntity = cloudEntities.first {
+            $0.kind == .journal && $0.id == localJournal.id
+        }!
+        let journalIdentity = try! CloudSyncCodec.identity(from: journalEntity.recordName)
+        precondition(journalIdentity.0 == .journal)
+        precondition(journalIdentity.1 == localJournal.id)
+
+        var cloudMergeProbe = MossDatabase()
+        try! cloudMergeProbe.apply([
+            .upsert(
+                kind: .journal,
+                id: localJournal.id,
+                payload: journalEntity.payload
+            )
+        ])
+        precondition(cloudMergeProbe.journalRecords.first?.body == "已经补充完成。")
+        try! cloudMergeProbe.apply([
+            .delete(kind: .journal, id: localJournal.id)
+        ])
+        precondition(cloudMergeProbe.journalRecords.isEmpty)
+
+        let linkedPlan = movementStore.plans.first { $0.linkedTaskID == generatedTask.id }
+        if let linkedPlan,
+           let planEntity = cloudEntities.first(where: {
+               $0.kind == .plan && $0.id == linkedPlan.id
+           }) {
+            var deletionProbe = MossDatabase(
+                tasks: [generatedTask],
+                plans: [linkedPlan]
+            )
+            try! deletionProbe.apply([
+                .upsert(kind: .plan, id: linkedPlan.id, payload: planEntity.payload),
+                .delete(kind: .task, id: generatedTask.id)
+            ])
+            precondition(deletionProbe.tasks.isEmpty)
+            precondition(deletionProbe.plans.first?.linkedTaskID == nil)
+        }
+        print("icloud-codec-merge-delete=pass")
+
+        let journalExportDirectory = movementDirectory
+            .appendingPathComponent("Apple手记", isDirectory: true)
+        let journalEntriesDirectory = journalExportDirectory
+            .appendingPathComponent("Entries", isDirectory: true)
+        try! FileManager.default.createDirectory(
+            at: journalEntriesDirectory,
+            withIntermediateDirectories: true
+        )
+        let journalIndexURL = journalExportDirectory.appendingPathComponent("index.html")
+        try! "<html><body>手记导出</body></html>".write(
+            to: journalIndexURL,
+            atomically: true,
+            encoding: .utf8
+        )
+        let firstHTML = """
+        <html><body>
+        <div class="pageHeader">2026年7月14日 星期二</div>
+        <div class="title">考试结束！</div>
+        <div class="bodyText"><p>开始记录自己。</p><p>好好对待假期。</p></div>
+        </body></html>
+        """
+        try! firstHTML.write(
+            to: journalEntriesDirectory.appendingPathComponent("2026-07-14_考试结束！.html"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let secondHTML = """
+        <html><body>
+        <div class="pageHeader">2026年6月28日 星期日</div>
+        <div class="bodyText"><p>今天完成了复习。</p></div>
+        </body></html>
+        """
+        try! secondHTML.write(
+            to: journalEntriesDirectory.appendingPathComponent("2026-06-28.html"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let importedHTMLRecords = try! JournalImportService.records(from: journalIndexURL)
+        precondition(importedHTMLRecords.count == 2)
+        precondition(importedHTMLRecords.last?.title == "考试结束！")
+        precondition(importedHTMLRecords.last?.body.contains("好好对待假期") == true)
+        precondition(
+            Calendar.current.dateComponents(
+                [.year, .month, .day],
+                from: importedHTMLRecords.last!.entryDate
+            ) == DateComponents(year: 2026, month: 7, day: 14)
+        )
+        print("apple-journal-html-export-import=pass")
+
         var firstSortedTask = FocusTask(title: "Sorted first", category: "Tests", sortOrder: 0)
         firstSortedTask.warmupDuration = 0
         var recentlyUsedTask = FocusTask(title: "Recently used", category: "Tests", sortOrder: 99)
@@ -977,13 +1143,27 @@ struct MossBehaviorCheck {
             topCategory: exportProject.title,
             generatedSummary: "稳定推进"
         )
+        let exportPlan = PlanEntry(
+            title: "导出计划",
+            note: "保持本地",
+            estimatedMinutes: 25,
+            linkedTaskID: exportTask.id
+        )
+        let exportJournal = JournalRecord(
+            title: "导出手记",
+            body: "一段正文",
+            source: .appleJournal,
+            importedFileName: "Journal.pdf"
+        )
         let exportData = try! ExportService.jsonData(
             projects: [exportProject],
             tasks: [exportTask],
             sessions: [exportSession],
             interruptions: [exportInterruption],
             reflections: [exportReflection],
-            snapshots: [exportSnapshot]
+            snapshots: [exportSnapshot],
+            plans: [exportPlan],
+            journalRecords: [exportJournal]
         )
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -997,6 +1177,8 @@ struct MossBehaviorCheck {
         precondition(payload.interruptions.first?.reasonRaw == InterruptionReason.phone.rawValue)
         precondition(payload.reflections.first?.freeText == "需要拆小")
         precondition(payload.snapshots.first?.generatedSummary == "稳定推进")
+        precondition(payload.plans.first?.linkedTaskID == exportTask.id)
+        precondition(payload.journalRecords.first?.source == .appleJournal)
         print("json-export-roundtrip=pass")
     }
 

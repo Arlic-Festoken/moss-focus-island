@@ -36,6 +36,9 @@ expect "Sources/Moss/MossApp.swift" "import AppKit"
 expect "Sources/Moss/MossApp.swift" "final class MossAppDelegate: NSObject, NSApplicationDelegate"
 expect "Sources/Moss/MossApp.swift" "applicationDidFinishLaunching"
 expect "Sources/Moss/MossApp.swift" "applicationWillFinishLaunching"
+expect "Sources/Moss/MossApp.swift" "applicationShouldHandleReopen"
+expect "Sources/Moss/MossApp.swift" "mossApplicationReopenRequested"
+expect "Sources/Moss/MossApp.swift" 'Button("打开 Moss 主窗口")'
 expect "Sources/Moss/MossApp.swift" "NSApp.setActivationPolicy(launchSilently ? .accessory : .regular)"
 expect "Sources/Moss/MossApp.swift" "let launchSilently = (UserDefaults.standard.object(forKey: \"launchSilently\") as? Bool) ?? true"
 expect "Sources/Moss/MossApp.swift" "DispatchQueue.main.asyncAfter(deadline: .now() + 0.35)"
@@ -46,6 +49,59 @@ reject "Sources/Moss/MossApp.swift" "terminate("
 reject "Sources/Moss/MossApp.swift" ".hide("
 expect "Sources/Moss/MossApp.swift" "Window(\"Moss · 专注岛\", id: \"main\")"
 expect "Sources/Moss/MainView.swift" ".frame(minWidth: 900, minHeight: 620)"
+expect "Sources/Moss/MainView.swift" 'case plan = "计划"'
+expect "Sources/Moss/MainView.swift" "journalComposerRequest: journalComposerRequest"
+expect "Sources/Moss/MainView.swift" 'Label("写手记", systemImage: "square.and.pencil")'
+expect "Sources/Moss/MainView.swift" '.keyboardShortcut("j", modifiers: [.command])'
+expect "Sources/Moss/PlanView.swift" 'case journal = "手记"'
+expect "Sources/Moss/PlanView.swift" 'case schedule = "排程"'
+expect "Sources/Moss/PlanView.swift" "PlanScheduleBoard("
+expect "Sources/Moss/PlanView.swift" "private struct PlanEditorDraft: Identifiable"
+expect "Sources/Moss/PlanView.swift" '.sheet(item: $newPlanDraft)'
+expect "Sources/Moss/PlanView.swift" ".id(draft.id)"
+reject "Sources/Moss/PlanView.swift" ".sheet(isPresented: \$isAddingPlan)"
+expect "Sources/Moss/PlanScheduleBoard.swift" "struct PlanScheduleBoard: View"
+expect "Sources/Moss/PlanScheduleBoard.swift" "DragGesture(minimumDistance: 4"
+expect "Sources/Moss/PlanScheduleBoard.swift" "onSelectRange(lower, safeDuration)"
+expect "Sources/Moss/PlanScheduleBoard.swift" "onMove(plan, dayShift, minuteShift)"
+expect "Sources/Moss/PlanScheduleBoard.swift" "updated.scheduledAt = destination"
+expect "Sources/Moss/PlanScheduleBoard.swift" "左右拖动这段时间链"
+expect "Sources/Moss/PlanScheduleBoard.swift" ".mossPlanContextMenu(plan: plan"
+expect "Sources/Moss/PlanScheduleBoard.swift" "private struct PlanContextMenuModifier: ViewModifier"
+expect "Sources/Moss/PlanScheduleBoard.swift" 'Label("复制到下一时段", systemImage: "plus.square.on.square")'
+expect "Sources/Moss/PlanScheduleBoard.swift" 'Label("标记完成", systemImage: "checkmark.circle")'
+expect "Sources/Moss/PlanScheduleBoard.swift" 'Label("删除计划…", systemImage: "trash")'
+expect "Sources/Moss/PlanScheduleBoard.swift" "dataStore.deletePlan(id: plan.id)"
+expect "Sources/Moss/PlanView.swift" ".mossPlanContextMenu("
+expect "Sources/Moss/PlanView.swift" 'Label("导入 Apple 手记", systemImage: "square.and.arrow.down")'
+expect "Sources/Moss/PlanView.swift" 'Label("先做 5 分钟", systemImage: "flame.fill")'
+expect "Sources/Moss/PlanView.swift" 'Label("开始专注", systemImage: "play.fill")'
+expect "Sources/Moss/PlanView.swift" 'Label("写手记", systemImage: "square.and.pencil")'
+expect "Sources/Moss/PlanView.swift" "private struct JournalEditorView: View"
+expect "Sources/Moss/PlanView.swift" "private struct MossDatePicker: View"
+expect "Sources/Moss/PlanView.swift" "private struct MossCalendar: View"
+expect "Sources/Moss/PlanView.swift" "MossDatePicker(selection: \$scheduledAt)"
+reject "Sources/Moss/PlanView.swift" ".datePickerStyle(.field)"
+expect "Sources/Moss/PlanView.swift" "focusedField = .body"
+expect "Sources/Moss/PlanView.swift" "automaticTitle(from: cleanBody)"
+reject "Sources/Moss/PlanView.swift" '"记录日期",'
+reject "Sources/Moss/TimelineFilterControls.swift" "Text(date, format: .dateTime.day())"
+expect "Sources/Moss/TimelineFilterControls.swift" "Text(String(calendar.component(.day, from: date)))"
+expect "Sources/Moss/Models.swift" "struct JournalRecordSummary: Identifiable, Hashable"
+expect "Sources/Moss/DataStore.swift" "journalRecordSummaries = journalRecords.map(JournalRecordSummary.init)"
+expect "Sources/Moss/PlanView.swift" "ForEach(dataStore.journalRecordSummaries)"
+expect "Sources/Moss/PlanView.swift" "PlanShelfTabButtonStyle()"
+expect "Sources/Moss/PlanView.swift" "hasPreloadedShelves"
+expect "Sources/Moss/PlanView.swift" ".shelfLayer(isActive: shelf == .journal)"
+reject "Sources/Moss/PlanView.swift" "Text(String(record.body.prefix(140)))"
+expect "Sources/Moss/DataStore.swift" "func updateJournalRecord(_ record: JournalRecord)"
+reject "Sources/Moss/PlanView.swift" "withAnimation("
+expect "Sources/Moss/PlanView.swift" "allowedContentTypes: [.folder, .html, .pdf, .plainText]"
+expect "Sources/Moss/PlanView.swift" "JournalImportService.records(from: url)"
+expect "Sources/Moss/JournalImportService.swift" 'url.lastPathComponent.lowercased() == "index.html"'
+expect "Sources/Moss/JournalImportService.swift" '"Entries"'
+expect "Sources/Moss/PlanView.swift" "Moss 不会读取受保护的手记数据库"
+expect "Sources/Moss/AppStore.swift" "dataStore.completePlannedEntry(linkedTo: current.taskID)"
 reject "Sources/Moss/WindowConfigurator.swift" "window.identifier ="
 expect "Sources/Moss/WindowConfigurator.swift" "let isTooSmall = window.frame.width < 900 || window.frame.height < 620"
 expect "Sources/Moss/WindowConfigurator.swift" "let isOffscreen = !NSScreen.screens.contains"
@@ -139,9 +195,16 @@ expect "Sources/Moss/MenuBarView.swift" "@ObservedObject private var panelContro
 expect "Sources/Moss/MenuBarView.swift" 'panelController.setVisible(!panelController.isVisible, store: store)'
 expect "Sources/Moss/MenuBarView.swift" 'panelController.isVisible ? "eye.slash" : "eye"'
 expect "Sources/Moss/MossApp.swift" "DesktopWidgetPanelController.shared.show(store: store, dataStore: dataStore)"
-expect "Sources/Moss/DesktopFocusWidget.swift" "final class DesktopWidgetPanelController: ObservableObject"
-expect "Sources/Moss/DesktopFocusWidget.swift" 'CGWindowLevelForKey(.desktopWindow)'
+expect "Sources/Moss/DesktopFocusWidget.swift" "final class DesktopWidgetPanelController: NSObject, ObservableObject, NSWindowDelegate"
+expect "Sources/Moss/DesktopFocusWidget.swift" 'CGWindowLevelForKey(.desktopIconWindow)'
+reject "Sources/Moss/DesktopFocusWidget.swift" 'CGWindowLevelForKey(.desktopWindow)'
+expect "Sources/Moss/DesktopFocusWidget.swift" "panel.ignoresMouseEvents = false"
 expect "Sources/Moss/DesktopFocusWidget.swift" "struct DesktopFocusWidgetView: View"
+expect "Sources/Moss/DesktopFocusWidget.swift" "panel.isMovableByWindowBackground = true"
+expect "Sources/Moss/DesktopFocusWidget.swift" "func windowDidMove(_ notification: Notification)"
+expect "Sources/Moss/DesktopFocusWidget.swift" "override func acceptsFirstMouse(for event: NSEvent?) -> Bool"
+expect "Sources/Moss/DesktopFocusWidget.swift" ".allowsHitTesting(false)"
+reject "Sources/Moss/DesktopFocusWidget.swift" "panel.isMovableByWindowBackground = false"
 expect "Sources/Moss/DesktopFocusWidget.swift" 'widgetActionButton("先做 5 分钟"'
 expect "Sources/Moss/DesktopFocusWidget.swift" 'widgetActionButton("开始专注"'
 expect "Sources/Moss/DesktopFocusWidget.swift" 'widgetActionButton("暂停"'

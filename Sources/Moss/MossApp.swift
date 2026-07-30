@@ -1,6 +1,12 @@
 import AppKit
 import SwiftUI
 
+extension Notification.Name {
+    static let mossApplicationReopenRequested = Notification.Name(
+        "com.zhikanghuang.moss.applicationReopenRequested"
+    )
+}
+
 final class MossAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         let launchSilently = (UserDefaults.standard.object(forKey: "launchSilently") as? Bool) ?? true
@@ -19,14 +25,31 @@ final class MossAppDelegate: NSObject, NSApplicationDelegate {
                 }
         }
     }
+
+    func applicationShouldHandleReopen(
+        _ sender: NSApplication,
+        hasVisibleWindows flag: Bool
+    ) -> Bool {
+        NotificationCenter.default.post(name: .mossApplicationReopenRequested, object: nil)
+        return true
+    }
 }
 
 @main
 struct MossApp: App {
     @NSApplicationDelegateAdaptor(MossAppDelegate.self) private var appDelegate
     @StateObject private var store = AppStore()
-    @StateObject private var dataStore = DataStore()
+    @StateObject private var dataStore: DataStore
+    @StateObject private var cloudSync: CloudSyncController
     @AppStorage("colorTheme") private var colorTheme = MossColorTheme.sage.rawValue
+
+    init() {
+        let dataStore = DataStore()
+        _dataStore = StateObject(wrappedValue: dataStore)
+        _cloudSync = StateObject(
+            wrappedValue: CloudSyncController(dataStore: dataStore)
+        )
+    }
 
     private var accent: Color {
         MossColorTheme(rawValue: colorTheme)?.accent ?? MossTheme.sage
@@ -44,18 +67,32 @@ struct MossApp: App {
             }
                 .environmentObject(store)
                 .environmentObject(dataStore)
+                .environmentObject(cloudSync)
                 .mossTypography()
                 .tint(accent)
                 .task {
                     store.configure(with: dataStore)
+                    cloudSync.startIfEnabled()
                     NotchPanelController.shared.show(store: store)
                     DesktopWidgetPanelController.shared.show(store: store, dataStore: dataStore)
+                }
+                .onReceive(
+                    NotificationCenter.default.publisher(for: .mossApplicationReopenRequested)
+                ) { _ in
+                    store.openMainWindow()
                 }
         }
         .defaultSize(width: 1120, height: 760)
         .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(after: .newItem) {
+                Button("打开 Moss 主窗口") {
+                    store.openMainWindow()
+                }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
+
+                Divider()
+
                 Button("开始上一次任务") {
                     store.startLastTask()
                 }
@@ -79,6 +116,7 @@ struct MossApp: App {
             MenuBarView()
                 .environmentObject(store)
                 .environmentObject(dataStore)
+                .environmentObject(cloudSync)
                 .mossTypography()
                 .tint(accent)
         }
@@ -88,6 +126,7 @@ struct MossApp: App {
             SettingsView()
                 .environmentObject(store)
                 .environmentObject(dataStore)
+                .environmentObject(cloudSync)
                 .mossTypography()
                 .tint(accent)
         }

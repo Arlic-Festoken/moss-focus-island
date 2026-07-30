@@ -15,4 +15,6 @@ ARCH="${MOSS_NATIVE_ARCH:-$(uname -m)}"
   -framework SwiftUI \
   -framework AppKit \
   -framework Charts \
+  -framework CloudKit \
+  -framework CryptoKit \
   -module-name Moss

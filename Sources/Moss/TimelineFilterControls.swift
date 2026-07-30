@@ -350,7 +350,7 @@ private struct TimelineCalendarPopover: View {
             selection = date
             onSelect()
         } label: {
-            Text(date, format: .dateTime.day())
+            Text(String(calendar.component(.day, from: date)))
                 .font(MossTypography.font(10, weight: isSelected ? .bold : .semibold))
                 .monospacedDigit()
                 .foregroundStyle(dayForeground(

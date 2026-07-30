@@ -3,7 +3,7 @@ import CoreGraphics
 import SwiftUI
 
 @MainActor
-final class DesktopWidgetPanelController: ObservableObject {
+final class DesktopWidgetPanelController: NSObject, ObservableObject, NSWindowDelegate {
     static let shared = DesktopWidgetPanelController()
 
     @Published private(set) var isVisible = false
@@ -12,7 +12,9 @@ final class DesktopWidgetPanelController: ObservableObject {
     private var panel: NSPanel?
     private var screenObserver: NSObjectProtocol?
 
-    private init() {}
+    private override init() {
+        super.init()
+    }
 
     func show(store: AppStore, dataStore: DataStore) {
         guard UserDefaults.standard.object(forKey: "showDesktopWidget") as? Bool ?? false else {
@@ -32,13 +34,16 @@ final class DesktopWidgetPanelController: ObservableObject {
             panel.backgroundColor = .clear
             panel.hasShadow = false
             panel.level = NSWindow.Level(
-                rawValue: Int(CGWindowLevelForKey(.desktopWindow)) + 1
+                rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1
             )
             panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
             panel.hidesOnDeactivate = false
+            panel.ignoresMouseEvents = false
+            panel.acceptsMouseMovedEvents = true
             panel.isMovable = true
-            panel.isMovableByWindowBackground = false
+            panel.isMovableByWindowBackground = true
             panel.isReleasedWhenClosed = false
+            panel.delegate = self
             panel.contentViewController = NSHostingController(
                 rootView: DesktopFocusWidgetView(dataStore: dataStore)
                     .environmentObject(store)
@@ -84,6 +89,12 @@ final class DesktopWidgetPanelController: ObservableObject {
         guard let panel else { return }
         panel.performDrag(with: event)
         savePosition(panel.frame.origin)
+    }
+
+    func windowDidMove(_ notification: Notification) {
+        guard let movedPanel = notification.object as? NSPanel,
+              movedPanel === panel else { return }
+        savePosition(movedPanel.frame.origin)
     }
 
     private func reposition() {
@@ -225,35 +236,38 @@ struct DesktopFocusWidgetView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 0) {
             ZStack {
-                Circle()
-                    .fill(MossTheme.sage.opacity(0.20))
-                Image(systemName: "leaf.fill")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(MossTheme.mint)
-            }
-            .frame(width: 30, height: 30)
+                DesktopWidgetDragHandle(controller: panelController)
+                HStack(spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .fill(MossTheme.sage.opacity(0.20))
+                        Image(systemName: "leaf.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(MossTheme.mint)
+                    }
+                    .frame(width: 30, height: 30)
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Moss 桌面伴侣")
-                    .font(MossTypography.font(11, weight: .bold))
-                    .foregroundStyle(.white)
-                Text(store.phase == .idle ? "准备好时，从这里开始" : phaseTitle)
-                    .font(MossTypography.font(8, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.48))
-            }
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Moss 桌面伴侣")
+                            .font(MossTypography.font(11, weight: .bold))
+                            .foregroundStyle(.white)
+                        Text(store.phase == .idle ? "准备好时，从这里开始" : phaseTitle)
+                            .font(MossTypography.font(8, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.48))
+                    }
 
-            Spacer()
+                    Spacer()
 
-            Capsule()
-                .fill(.white.opacity(0.24))
-                .frame(width: 34, height: 3)
-                .overlay {
-                    DesktopWidgetDragHandle(controller: panelController)
+                    Capsule()
+                        .fill(.white.opacity(0.24))
+                        .frame(width: 34, height: 3)
                 }
-                .frame(width: 68, height: 26)
-                .help("拖动桌面小组件")
+                .allowsHitTesting(false)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .help("拖动桌面小组件")
 
             Button {
                 panelController.setVisible(false, store: store, dataStore: dataStore)
@@ -268,7 +282,8 @@ struct DesktopFocusWidgetView: View {
             .help("隐藏桌面小组件")
             .accessibilityLabel("隐藏桌面小组件")
         }
-        .padding(.horizontal, 16)
+        .padding(.leading, 16)
+        .padding(.trailing, 12)
         .frame(height: 52)
     }
 
@@ -513,6 +528,16 @@ private final class DesktopWidgetDragView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        NSCursor.closedHand.push()
+        defer { NSCursor.pop() }
         controller?.performNativeDrag(with: event)
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .openHand)
     }
 }

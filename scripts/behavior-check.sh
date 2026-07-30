@@ -38,6 +38,9 @@ SOURCES=(${SOURCES:#"$ROOT/Sources/Moss/MossApp.swift"})
   -framework SwiftUI \
   -framework AppKit \
   -framework Charts \
+  -framework CloudKit \
+  -framework CryptoKit \
+  -framework PDFKit \
   -module-name MossBehaviorCheck \
   -o "$EXECUTABLE"
 

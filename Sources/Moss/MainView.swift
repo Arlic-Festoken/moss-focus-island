@@ -2,6 +2,7 @@ import SwiftUI
 
 enum AppSection: String, CaseIterable, Identifiable {
     case today = "今天"
+    case plan = "计划"
     case timeline = "时间线"
     case insights = "洞察"
     case companion = "桌宠"
@@ -20,6 +21,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .today: "sun.max"
+        case .plan: "calendar.badge.clock"
         case .timeline: "waveform.path.ecg"
         case .insights: "book.closed.fill"
         case .companion: "person.crop.circle.fill"
@@ -40,6 +42,7 @@ struct MainView: View {
     @AppStorage("growthTheme") private var growthThemeRaw = GrowthTheme.douluo.rawValue
     @State private var isAddingTask = false
     @State private var isAddingProject = false
+    @State private var journalComposerRequest: UUID?
     @State private var selectedSection: AppSection?
     @State private var detailSection: AppSection?
     @State private var hoveredSection: AppSection?
@@ -83,7 +86,19 @@ struct MainView: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 22)
-                .padding(.bottom, 18)
+                .padding(.bottom, 12)
+
+                Button {
+                    openJournalComposer()
+                } label: {
+                    Label("写手记", systemImage: "square.and.pencil")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(CapsuleButtonStyle(prominent: true))
+                .keyboardShortcut("j", modifiers: [.command])
+                .help("直接写一篇手记 · ⌘J")
+                .padding(.horizontal, 14)
+                .padding(.bottom, 12)
 
                 ScrollView {
                     VStack(spacing: 4) {
@@ -122,6 +137,14 @@ struct MainView: View {
                         TodayView {
                             navigate(to: .timeline)
                         }
+                    case .plan:
+                        PlanView(
+                            journalComposerRequest: journalComposerRequest,
+                            onJournalComposerRequestHandled: { request in
+                                guard journalComposerRequest == request else { return }
+                                journalComposerRequest = nil
+                            }
+                        )
                     case .timeline: TimelinePage()
                     case .insights: InsightsView()
                     case .companion: ThemeCompanionPage()
@@ -229,6 +252,11 @@ struct MainView: View {
             detailSection = section
             selectedSectionRaw = section.rawValue
         }
+    }
+
+    private func openJournalComposer() {
+        journalComposerRequest = UUID()
+        navigate(to: .plan)
     }
 
     private func updateHover(_ section: AppSection, isHovering: Bool) {

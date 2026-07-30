@@ -26,6 +26,9 @@ for arch in "${ARCHS[@]}"; do
     -framework SwiftUI \
     -framework AppKit \
     -framework Charts \
+    -framework CloudKit \
+    -framework CryptoKit \
+    -framework PDFKit \
     -module-name Moss
   BINARIES+=("$binary")
 done
@@ -69,6 +72,21 @@ do
 done
 
 iconutil -c icns "$ICONSET" -o "$CONTENTS/Resources/AppIcon.icns"
-codesign --force --deep --sign - "$APP" >/dev/null
+SIGN_IDENTITY="${MOSS_SIGN_IDENTITY:--}"
+if [[ "${MOSS_ENABLE_ICLOUD_ENTITLEMENTS:-0}" == "1" ]]; then
+  if [[ "$SIGN_IDENTITY" == "-" ]]; then
+    echo "MOSS_ENABLE_ICLOUD_ENTITLEMENTS=1 requires a real Apple Development signing identity." >&2
+    exit 1
+  fi
+  codesign \
+    --force \
+    --deep \
+    --options runtime \
+    --entitlements "$ROOT/Resources/Moss.entitlements" \
+    --sign "$SIGN_IDENTITY" \
+    "$APP" >/dev/null
+else
+  codesign --force --deep --sign "$SIGN_IDENTITY" "$APP" >/dev/null
+fi
 
 echo "$APP"

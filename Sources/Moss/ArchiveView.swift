@@ -121,6 +121,8 @@ struct ArchiveView: View {
                 interruptions: dataStore.interruptions,
                 reflections: dataStore.reflections,
                 snapshots: dataStore.snapshots,
+                plans: dataStore.plans,
+                journalRecords: dataStore.journalRecords,
                 format: format
             )
             if case let .saved(url) = result {

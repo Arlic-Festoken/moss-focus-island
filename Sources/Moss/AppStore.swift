@@ -309,6 +309,7 @@ final class AppStore: ObservableObject {
         }
         if completion == .completed {
             dataStore.incrementCompletedSessions(taskID: current.taskID)
+            dataStore.completePlannedEntry(linkedTo: current.taskID)
         }
         let after = FocusAnalyticsSnapshot(sessions: dataStore.sessions)
         showCompletionReceipt(

@@ -410,6 +410,153 @@ struct DailySnapshot: Identifiable, Codable, Hashable {
     var generatedSummary: String
 }
 
+enum PlanStatus: String, Codable, CaseIterable, Identifiable {
+    case planned
+    case completed
+    case skipped
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .planned: "待开始"
+        case .completed: "已完成"
+        case .skipped: "已搁置"
+        }
+    }
+}
+
+enum PlanSource: String, Codable {
+    case moss
+    case appleJournal
+}
+
+struct PlanEntry: Identifiable, Codable, Hashable {
+    var id: UUID
+    var title: String
+    var note: String
+    var scheduledAt: Date
+    var estimatedMinutes: Int
+    var linkedTaskID: UUID?
+    var statusRaw: String
+    var sourceRaw: String
+    var createdAt: Date
+    var updatedAt: Date
+    var completedAt: Date?
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        note: String = "",
+        scheduledAt: Date = .now,
+        estimatedMinutes: Int = 25,
+        linkedTaskID: UUID? = nil,
+        status: PlanStatus = .planned,
+        source: PlanSource = .moss,
+        createdAt: Date = .now,
+        updatedAt: Date = .now,
+        completedAt: Date? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.note = note
+        self.scheduledAt = scheduledAt
+        self.estimatedMinutes = estimatedMinutes
+        self.linkedTaskID = linkedTaskID
+        self.statusRaw = status.rawValue
+        self.sourceRaw = source.rawValue
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.completedAt = completedAt
+    }
+
+    var status: PlanStatus {
+        PlanStatus(rawValue: statusRaw) ?? .planned
+    }
+
+    var source: PlanSource {
+        PlanSource(rawValue: sourceRaw) ?? .moss
+    }
+}
+
+enum JournalRecordSource: String, Codable {
+    case moss
+    case appleJournal
+}
+
+struct JournalRecord: Identifiable, Codable, Hashable {
+    var id: UUID
+    var title: String
+    var body: String
+    var entryDate: Date
+    var sourceRaw: String
+    var importedFileName: String?
+    var createdAt: Date
+    var updatedAt: Date
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        body: String,
+        entryDate: Date = .now,
+        source: JournalRecordSource = .moss,
+        importedFileName: String? = nil,
+        createdAt: Date = .now,
+        updatedAt: Date? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.body = body
+        self.entryDate = entryDate
+        self.sourceRaw = source.rawValue
+        self.importedFileName = importedFileName
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt ?? createdAt
+    }
+
+    var source: JournalRecordSource {
+        JournalRecordSource(rawValue: sourceRaw) ?? .moss
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, title, body, entryDate, sourceRaw, importedFileName, createdAt, updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        title = try values.decodeIfPresent(String.self, forKey: .title) ?? "无标题手记"
+        body = try values.decodeIfPresent(String.self, forKey: .body) ?? ""
+        entryDate = try values.decodeIfPresent(Date.self, forKey: .entryDate) ?? .now
+        sourceRaw = try values.decodeIfPresent(String.self, forKey: .sourceRaw)
+            ?? JournalRecordSource.moss.rawValue
+        importedFileName = try values.decodeIfPresent(String.self, forKey: .importedFileName)
+        createdAt = try values.decodeIfPresent(Date.self, forKey: .createdAt) ?? entryDate
+        updatedAt = try values.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
+    }
+}
+
+struct JournalRecordSummary: Identifiable, Hashable {
+    let id: UUID
+    let title: String
+    let preview: String
+    let entryDate: Date
+    let source: JournalRecordSource
+
+    init(record: JournalRecord) {
+        id = record.id
+        title = record.title
+        preview = String(
+            record.body
+                .split(whereSeparator: \.isWhitespace)
+                .joined(separator: " ")
+                .prefix(72)
+        )
+        entryDate = record.entryDate
+        source = record.source
+    }
+}
+
 struct MossDatabase: Codable {
     var projects: [FocusProject]
     var tasks: [FocusTask]
@@ -417,6 +564,8 @@ struct MossDatabase: Codable {
     var interruptions: [Interruption]
     var reflections: [Reflection]
     var snapshots: [DailySnapshot]
+    var plans: [PlanEntry]
+    var journalRecords: [JournalRecord]
 
     init(
         projects: [FocusProject] = [],
@@ -424,7 +573,9 @@ struct MossDatabase: Codable {
         sessions: [FocusSession] = [],
         interruptions: [Interruption] = [],
         reflections: [Reflection] = [],
-        snapshots: [DailySnapshot] = []
+        snapshots: [DailySnapshot] = [],
+        plans: [PlanEntry] = [],
+        journalRecords: [JournalRecord] = []
     ) {
         self.projects = projects
         self.tasks = tasks
@@ -432,10 +583,13 @@ struct MossDatabase: Codable {
         self.interruptions = interruptions
         self.reflections = reflections
         self.snapshots = snapshots
+        self.plans = plans
+        self.journalRecords = journalRecords
     }
 
     private enum CodingKeys: String, CodingKey {
         case projects, tasks, sessions, interruptions, reflections, snapshots
+        case plans, journalRecords
     }
 
     init(from decoder: Decoder) throws {
@@ -446,5 +600,7 @@ struct MossDatabase: Codable {
         interruptions = try values.decodeIfPresent([Interruption].self, forKey: .interruptions) ?? []
         reflections = try values.decodeIfPresent([Reflection].self, forKey: .reflections) ?? []
         snapshots = try values.decodeIfPresent([DailySnapshot].self, forKey: .snapshots) ?? []
+        plans = try values.decodeIfPresent([PlanEntry].self, forKey: .plans) ?? []
+        journalRecords = try values.decodeIfPresent([JournalRecord].self, forKey: .journalRecords) ?? []
     }
 }

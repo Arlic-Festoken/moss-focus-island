@@ -28,6 +28,13 @@ final class DataStore: ObservableObject {
     @Published private(set) var interruptions: [Interruption] = []
     @Published private(set) var reflections: [Reflection] = []
     @Published private(set) var snapshots: [DailySnapshot] = []
+    @Published private(set) var plans: [PlanEntry] = []
+    @Published private(set) var journalRecords: [JournalRecord] = [] {
+        didSet {
+            journalRecordSummaries = journalRecords.map(JournalRecordSummary.init)
+        }
+    }
+    private(set) var journalRecordSummaries: [JournalRecordSummary] = []
     @Published private(set) var storageIssue: DataStoreIssue?
     private(set) var analyticsSnapshot = FocusAnalyticsSnapshot(sessions: [])
 
@@ -55,6 +62,7 @@ final class DataStore: ObservableObject {
     private let decoder: JSONDecoder
     private var loadedPersistedDatabase = false
     private var storageWritesAllowed = true
+    private weak var cloudSync: CloudSyncController?
 
     init(fileURL: URL? = nil, seedIfMissing: Bool = true) {
         let resolvedFileURL: URL
@@ -102,6 +110,10 @@ final class DataStore: ObservableObject {
         if seedIfMissing {
             seedIfNeeded()
         }
+    }
+
+    func configureCloudSync(_ controller: CloudSyncController) {
+        cloudSync = controller
     }
 
     func addProject(_ project: FocusProject) {
@@ -195,6 +207,10 @@ final class DataStore: ObservableObject {
 
     func deleteTask(id: UUID) {
         tasks.removeAll { $0.id == id }
+        for index in plans.indices where plans[index].linkedTaskID == id {
+            plans[index].linkedTaskID = nil
+            plans[index].updatedAt = .now
+        }
         save()
     }
 
@@ -238,6 +254,112 @@ final class DataStore: ObservableObject {
         save()
     }
 
+    func addPlan(_ plan: PlanEntry) {
+        plans.append(plan)
+        sortPlans()
+        save()
+    }
+
+    func updatePlan(_ plan: PlanEntry) {
+        guard let index = plans.firstIndex(where: { $0.id == plan.id }) else { return }
+        var updated = plan
+        updated.updatedAt = .now
+        plans[index] = updated
+        sortPlans()
+        save()
+    }
+
+    func setPlanStatus(id: UUID, status: PlanStatus) {
+        guard let index = plans.firstIndex(where: { $0.id == id }) else { return }
+        plans[index].statusRaw = status.rawValue
+        plans[index].updatedAt = .now
+        plans[index].completedAt = status == .completed ? .now : nil
+        sortPlans()
+        save()
+    }
+
+    func completePlannedEntry(linkedTo taskID: UUID, on date: Date = .now) {
+        guard let index = plans.firstIndex(where: {
+            $0.linkedTaskID == taskID
+                && $0.status == .planned
+                && Calendar.current.isDate($0.scheduledAt, inSameDayAs: date)
+        }) else { return }
+        plans[index].statusRaw = PlanStatus.completed.rawValue
+        plans[index].completedAt = date
+        plans[index].updatedAt = date
+        sortPlans()
+        save()
+    }
+
+    func deletePlan(id: UUID) {
+        plans.removeAll { $0.id == id }
+        save()
+    }
+
+    func task(for plan: PlanEntry) -> FocusTask {
+        if let linkedTaskID = plan.linkedTaskID,
+           let task = tasks.first(where: { $0.id == linkedTaskID }) {
+            return task
+        }
+
+        let defaults = FocusTaskDefaults.load()
+        let task = FocusTask(
+            title: plan.title,
+            category: "计划",
+            estimatedSessions: max(1, Int(ceil(Double(plan.estimatedMinutes) / 25.0))),
+            sortOrder: tasks.count,
+            timerActivity: .pomodoro,
+            focusDuration: TimeInterval(max(1, plan.estimatedMinutes) * 60),
+            breakDuration: defaults.breakDuration,
+            warmupDuration: defaults.warmupDuration,
+            discardThreshold: defaults.discardThreshold
+        )
+        tasks.append(task)
+        if let index = plans.firstIndex(where: { $0.id == plan.id }) {
+            plans[index].linkedTaskID = task.id
+            plans[index].updatedAt = .now
+        }
+        sortTasks()
+        save()
+        return task
+    }
+
+    func addJournalRecord(_ record: JournalRecord) {
+        _ = addJournalRecords([record])
+    }
+
+    func updateJournalRecord(_ record: JournalRecord) {
+        guard let index = journalRecords.firstIndex(where: { $0.id == record.id }) else { return }
+        var updated = record
+        updated.updatedAt = .now
+        journalRecords[index] = updated
+        sortJournalRecords()
+        save()
+    }
+
+    @discardableResult
+    func addJournalRecords(_ records: [JournalRecord]) -> Int {
+        var inserted = 0
+        for record in records where record.source == .moss || !journalRecords.contains(where: {
+            $0.source == record.source
+                && $0.title == record.title
+                && $0.body == record.body
+                && Calendar.current.isDate($0.entryDate, inSameDayAs: record.entryDate)
+        }) {
+            journalRecords.append(record)
+            inserted += 1
+        }
+        guard inserted > 0 else { return 0 }
+        sortJournalRecords()
+        save()
+        return inserted
+    }
+
+    func deleteJournalRecord(id: UUID) {
+        journalRecords.removeAll { $0.id == id }
+        save()
+    }
+
     func project(id: UUID?) -> FocusProject? {
         guard let id else { return nil }
         return projects.first { $0.id == id }
@@ -257,7 +379,7 @@ final class DataStore: ObservableObject {
             .reduce(0) { $0 + $1.actualFocusDuration }
     }
 
-    func save() {
+    func save(notifyCloud: Bool = true) {
         guard storageWritesAllowed else {
             if storageIssue == nil {
                 storageIssue = DataStoreIssue(
@@ -275,7 +397,9 @@ final class DataStore: ObservableObject {
             sessions: sessions,
             interruptions: interruptions,
             reflections: reflections,
-            snapshots: snapshots
+            snapshots: snapshots,
+            plans: plans,
+            journalRecords: journalRecords
         )
         do {
             let data = try encoder.encode(database)
@@ -284,6 +408,9 @@ final class DataStore: ObservableObject {
                 try previous.write(to: backupURL, options: .atomic)
             }
             try data.write(to: fileURL, options: .atomic)
+            if notifyCloud {
+                cloudSync?.databaseDidChange(database)
+            }
         } catch {
             storageIssue = DataStoreIssue(
                 kind: .saveFailed,
@@ -292,6 +419,26 @@ final class DataStore: ObservableObject {
                 canRestoreBackup: validatedBackup() != nil
             )
         }
+    }
+
+    func databaseSnapshot() -> MossDatabase {
+        MossDatabase(
+            projects: projects,
+            tasks: tasks,
+            sessions: sessions,
+            interruptions: interruptions,
+            reflections: reflections,
+            snapshots: snapshots,
+            plans: plans,
+            journalRecords: journalRecords
+        )
+    }
+
+    func applyCloudChanges(_ changes: [CloudSyncRemoteChange]) throws {
+        var database = databaseSnapshot()
+        try database.apply(changes)
+        apply(database)
+        save(notifyCloud: false)
     }
 
     func restoreBackup() {
@@ -415,6 +562,8 @@ final class DataStore: ObservableObject {
 
         sortProjects()
         sortTasks()
+        sortPlans()
+        sortJournalRecords()
         if changed { save() }
     }
 
@@ -432,6 +581,24 @@ final class DataStore: ObservableObject {
         }
     }
 
+    private func sortPlans() {
+        plans.sort {
+            if $0.scheduledAt == $1.scheduledAt {
+                return $0.createdAt < $1.createdAt
+            }
+            return $0.scheduledAt < $1.scheduledAt
+        }
+    }
+
+    private func sortJournalRecords() {
+        journalRecords.sort {
+            if $0.entryDate == $1.entryDate {
+                return $0.createdAt > $1.createdAt
+            }
+            return $0.entryDate > $1.entryDate
+        }
+    }
+
     private func apply(_ database: MossDatabase) {
         projects = database.projects
         tasks = database.tasks
@@ -439,8 +606,12 @@ final class DataStore: ObservableObject {
         interruptions = database.interruptions
         reflections = database.reflections
         snapshots = database.snapshots
+        plans = database.plans
+        journalRecords = database.journalRecords
         sortProjects()
         sortTasks()
+        sortPlans()
+        sortJournalRecords()
     }
 
     private func validatedBackup() -> MossDatabase? {

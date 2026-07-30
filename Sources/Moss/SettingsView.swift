@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var dataStore: DataStore
+    @EnvironmentObject private var cloudSync: CloudSyncController
     @AppStorage("focusMinutes") private var focusMinutes = 25
     @AppStorage("breakMinutes") private var breakMinutes = 5
     @AppStorage("showNotchIsland") private var showNotchIsland = true
@@ -200,6 +201,48 @@ struct SettingsView: View {
                     }
                 }
             }
+            Section("iCloud 同步") {
+                Toggle(
+                    "在 Mac、iPhone 和 iPad 间同步",
+                    isOn: Binding(
+                        get: { cloudSync.isEnabled },
+                        set: { cloudSync.setEnabled($0) }
+                    )
+                )
+
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: cloudSync.status.symbol)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(
+                            cloudSync.status == .disabled
+                                ? Color.secondary
+                                : MossTheme.sage
+                        )
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(cloudSync.status.title)
+                            .font(MossTypography.font(13, weight: .semibold))
+                        Text(cloudSync.status.detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("立即同步") {
+                        cloudSync.syncNow()
+                    }
+                    .disabled(
+                        !cloudSync.isEnabled
+                            || cloudSync.status == .checking
+                            || cloudSync.status == .syncing
+                    )
+                }
+                .padding(.vertical, 4)
+
+                Text("使用你的 CloudKit 私有数据库。Moss 始终先保存到本地；断网、退出 iCloud 或同步失败都不会删除本机数据。需要所有设备登录同一个 Apple ID。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Section("隐私与数据") {
                 if let issue = dataStore.storageIssue {
                     VStack(alignment: .leading, spacing: 7) {
@@ -221,8 +264,14 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 4)
                 }
-                LabeledContent("网络请求", value: "0")
-                LabeledContent("数据位置", value: "仅存储在这台 Mac")
+                LabeledContent(
+                    "网络请求",
+                    value: cloudSync.isEnabled ? "仅 Apple CloudKit" : "0"
+                )
+                LabeledContent(
+                    "数据位置",
+                    value: cloudSync.isEnabled ? "本机 + iCloud 私有数据库" : "仅存储在这台 Mac"
+                )
                 HStack {
                     Button("导出 JSON") {
                         exportData(.json)
